@@ -1,0 +1,21 @@
+# Core
+python-dotenv==1.0.1
+requests==2.32.3
+
+# Geospatial
+geopandas==0.14.4
+shapely==2.0.4
+pyproj==3.6.1
+
+# Data / simulation
+pandas==2.2.2
+numpy==1.26.4
+
+# Object storage (Cloudflare R2 — S3-compatible)
+boto3==1.34.144
+
+# Vision-language API client (Gemini)
+google-generativeai==0.7.2
+
+# DB (only if pipeline reads GEO MAPID exports directly from Postgres)
+psycopg[binary]==3.2.1

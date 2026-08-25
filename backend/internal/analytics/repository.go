@@ -33,7 +33,7 @@ func (r *Repository) SpendingGap(ctx context.Context, stationID string) ([]Spend
 	}
 	defer rows.Close()
 
-	var out []SpendingGapResponse
+	var out = make([]SpendingGapResponse, 0)
 	for rows.Next() {
 		var g SpendingGapResponse
 		if err := rows.Scan(
@@ -60,7 +60,7 @@ func (r *Repository) CategoryGap(ctx context.Context, stationID string) ([]Categ
 	}
 	defer rows.Close()
 
-	var out []CategoryGapResponse
+	var out = make([]CategoryGapResponse, 0)
 	for rows.Next() {
 		var c CategoryGapResponse
 		if err := rows.Scan(&c.StationID, &c.Category, &c.DemandInArea, &c.AvailableInStation); err != nil {
@@ -83,7 +83,7 @@ func (r *Repository) RentFlowIndex(ctx context.Context, stationID string) ([]Ren
 	}
 	defer rows.Close()
 
-	var out []RentFlowIndexResponse
+	var out = make([]RentFlowIndexResponse, 0)
 	for rows.Next() {
 		var rf RentFlowIndexResponse
 		if err := rows.Scan(&rf.PlotID, &rf.StationID, &rf.OfferedRent, &rf.MeasuredFlow, &rf.Index, &rf.IsOutlier); err != nil {
@@ -107,7 +107,7 @@ func (r *Repository) EventPotential(ctx context.Context, stationID string) ([]Ev
 	}
 	defer rows.Close()
 
-	var out []EventPotentialResponse
+	var out = make([]EventPotentialResponse, 0)
 	for rows.Next() {
 		var e EventPotentialResponse
 		if err := rows.Scan(&e.StationID, &e.ZoneID, &e.ActivationScore, &e.RecommendedSlot); err != nil {

@@ -12,6 +12,7 @@ import (
 	"github.com/list-pandora/isi-stasiun-backend/internal/middleware"
 	"github.com/list-pandora/isi-stasiun-backend/internal/pipeline"
 	"github.com/list-pandora/isi-stasiun-backend/internal/premium"
+	"github.com/list-pandora/isi-stasiun-backend/internal/response"
 	"github.com/list-pandora/isi-stasiun-backend/internal/station"
 	"github.com/list-pandora/isi-stasiun-backend/internal/survey"
 	"github.com/list-pandora/isi-stasiun-backend/internal/transparency"
@@ -62,6 +63,9 @@ func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 
 	// ---- Health check ----
 	app.Get("/healthz", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
+		return response.OKWithMessage(c, "Server Isi Stasiun berjalan normal", fiber.Map{
+			"app":     "Isi Stasiun Backend",
+			"version": "1.0.0",
+		})
 	})
 }

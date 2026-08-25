@@ -34,7 +34,7 @@ func (r *Repository) List(ctx context.Context, stationID string) ([]LayerEntry, 
 	}
 	defer rows.Close()
 
-	var out []LayerEntry
+	var out = make([]LayerEntry, 0)
 	for rows.Next() {
 		var e LayerEntry
 		if err := rows.Scan(&e.StationID, &e.ZoneID, &e.SampleCount, &e.IsThin, &e.ConfidenceScore); err != nil {

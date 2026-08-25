@@ -2,43 +2,51 @@ package response
 
 import "github.com/gofiber/fiber/v2"
 
-// Envelope matches the standard API response shape agreed in
-// BACKEND_TASK_DIVISION_3_PERSON.md: { success, data, error }.
+// Envelope matches the standardized JSON response shape:
+// { success, message, data }.
 type Envelope struct {
 	Success bool        `json:"success"`
+	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
-	Error   *ErrorBody  `json:"error"`
-}
-
-type ErrorBody struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
 }
 
 func OK(c *fiber.Ctx, data interface{}) error {
 	return c.Status(fiber.StatusOK).JSON(Envelope{
 		Success: true,
+		Message: "Berhasil mengambil data",
 		Data:    data,
-		Error:   nil,
+	})
+}
+
+func OKWithMessage(c *fiber.Ctx, message string, data interface{}) error {
+	return c.Status(fiber.StatusOK).JSON(Envelope{
+		Success: true,
+		Message: message,
+		Data:    data,
 	})
 }
 
 func Created(c *fiber.Ctx, data interface{}) error {
 	return c.Status(fiber.StatusCreated).JSON(Envelope{
 		Success: true,
+		Message: "Berhasil membuat data",
 		Data:    data,
-		Error:   nil,
+	})
+}
+
+func CreatedWithMessage(c *fiber.Ctx, message string, data interface{}) error {
+	return c.Status(fiber.StatusCreated).JSON(Envelope{
+		Success: true,
+		Message: message,
+		Data:    data,
 	})
 }
 
 func Fail(c *fiber.Ctx, status int, code, message string) error {
 	return c.Status(status).JSON(Envelope{
 		Success: false,
+		Message: message,
 		Data:    nil,
-		Error: &ErrorBody{
-			Code:    code,
-			Message: message,
-		},
 	})
 }
 

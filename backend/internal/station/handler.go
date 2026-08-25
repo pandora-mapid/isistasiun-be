@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 
 	"github.com/list-pandora/isi-stasiun-backend/internal/response"
 )
@@ -26,36 +27,44 @@ func (h *Handler) RegisterRoutes(r fiber.Router) {
 func (h *Handler) ListStations(c *fiber.Ctx) error {
 	var q ListStationsQuery
 	if err := c.QueryParser(&q); err != nil {
-		return response.BadRequest(c, "invalid query params")
+		return response.BadRequest(c, "Format query parameter tidak valid")
 	}
 
 	stations, err := h.svc.ListStations(c.Context(), q.AreaType, q.Operator)
 	if err != nil {
-		return response.Internal(c, "failed to list stations")
+		return response.Internal(c, "Gagal mengambil daftar stasiun")
 	}
-	return response.OK(c, stations)
+	return response.OKWithMessage(c, "Berhasil mengambil daftar stasiun", stations)
 }
 
 func (h *Handler) GetStation(c *fiber.Ctx) error {
 	id := c.Params("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return response.BadRequest(c, "Format ID stasiun tidak valid (harus UUID)")
+	}
+
 	st, err := h.svc.GetStation(c.Context(), id)
 	if errors.Is(err, ErrNotFound) {
-		return response.NotFound(c, "station not found")
+		return response.NotFound(c, "Stasiun tidak ditemukan")
 	}
 	if err != nil {
-		return response.Internal(c, "failed to get station")
+		return response.Internal(c, "Gagal mengambil detail stasiun")
 	}
-	return response.OK(c, st)
+	return response.OKWithMessage(c, "Berhasil mengambil detail stasiun", st)
 }
 
 func (h *Handler) ListEntrances(c *fiber.Ctx) error {
 	id := c.Params("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return response.BadRequest(c, "Format ID stasiun tidak valid (harus UUID)")
+	}
+
 	entrances, err := h.svc.ListEntrances(c.Context(), id)
 	if errors.Is(err, ErrNotFound) {
-		return response.NotFound(c, "station not found")
+		return response.NotFound(c, "Stasiun tidak ditemukan")
 	}
 	if err != nil {
-		return response.Internal(c, "failed to list entrances")
+		return response.Internal(c, "Gagal mengambil daftar pintu stasiun")
 	}
-	return response.OK(c, entrances)
+	return response.OKWithMessage(c, "Berhasil mengambil daftar pintu stasiun", entrances)
 }

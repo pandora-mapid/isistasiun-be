@@ -1,7 +1,9 @@
 package copilot
 
 import (
+	"context"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -10,10 +12,14 @@ import (
 )
 
 type Handler struct {
-	svc *Service
+	svc copilotService
 }
 
-func NewHandler(svc *Service) *Handler {
+type copilotService interface {
+	Query(ctx context.Context, req QueryRequest) (*QueryResponse, error)
+}
+
+func NewHandler(svc copilotService) *Handler {
 	return &Handler{svc: svc}
 }
 
@@ -34,7 +40,7 @@ func (h *Handler) Query(c *fiber.Ctx) error {
 	if req.Query == "" {
 		return response.BadRequest(c, "Query wajib diisi")
 	}
-	if len(req.Query) > 500 {
+	if utf8.RuneCountInString(req.Query) > 500 {
 		return response.BadRequest(c, "Query terlalu panjang (maksimal 500 karakter)")
 	}
 	if req.StationID != "" {

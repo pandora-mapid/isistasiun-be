@@ -1,6 +1,8 @@
 package confidence
 
 import (
+	"context"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
@@ -8,10 +10,14 @@ import (
 )
 
 type Handler struct {
-	svc *Service
+	svc confidenceService
 }
 
-func NewHandler(svc *Service) *Handler {
+type confidenceService interface {
+	List(ctx context.Context, stationID string) ([]LayerEntry, error)
+}
+
+func NewHandler(svc confidenceService) *Handler {
 	return &Handler{svc: svc}
 }
 

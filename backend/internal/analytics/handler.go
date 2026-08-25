@@ -1,6 +1,8 @@
 package analytics
 
 import (
+	"context"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
@@ -8,10 +10,17 @@ import (
 )
 
 type Handler struct {
-	svc *Service
+	svc analyticsService
 }
 
-func NewHandler(svc *Service) *Handler {
+type analyticsService interface {
+	SpendingGap(ctx context.Context, stationID string) ([]SpendingGapResponse, error)
+	CategoryGap(ctx context.Context, stationID string) ([]CategoryGapResponse, error)
+	RentFlowIndex(ctx context.Context, stationID string) ([]RentFlowIndexResponse, error)
+	EventPotential(ctx context.Context, stationID string) ([]EventPotentialResponse, error)
+}
+
+func NewHandler(svc analyticsService) *Handler {
 	return &Handler{svc: svc}
 }
 

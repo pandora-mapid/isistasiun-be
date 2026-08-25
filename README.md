@@ -46,6 +46,8 @@ make be-migrate-up           # jalankan migration (butuh golang-migrate, lihat c
 ```
 
 - Backend API: http://localhost:8080/api/v1 (health check: `/healthz`)
+- Swagger UI (development only): http://localhost:8080/docs
+- OpenAPI spec (development only): http://localhost:8080/docs/openapi.yaml
 - Postgres: `localhost:5432`
 
 ## Development

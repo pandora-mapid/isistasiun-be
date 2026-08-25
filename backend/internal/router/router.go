@@ -6,9 +6,10 @@ import (
 
 	"github.com/list-pandora/isi-stasiun-backend/internal/analytics"
 	"github.com/list-pandora/isi-stasiun-backend/internal/auth"
-	"github.com/list-pandora/isi-stasiun-backend/internal/config"
 	"github.com/list-pandora/isi-stasiun-backend/internal/confidence"
+	"github.com/list-pandora/isi-stasiun-backend/internal/config"
 	"github.com/list-pandora/isi-stasiun-backend/internal/copilot"
+	"github.com/list-pandora/isi-stasiun-backend/internal/docs"
 	"github.com/list-pandora/isi-stasiun-backend/internal/middleware"
 	"github.com/list-pandora/isi-stasiun-backend/internal/pipeline"
 	"github.com/list-pandora/isi-stasiun-backend/internal/premium"
@@ -22,6 +23,8 @@ import (
 // split in BACKEND_TASK_DIVISION_3_PERSON.md. Each module keeps its own
 // RegisterRoutes so merge conflicts stay confined to this one file.
 func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
+	docs.Register(app, !cfg.IsProduction())
+
 	api := app.Group("/api/v1")
 
 	// ---- Priyapta: public map/analytics/confidence (no auth — public tier) ----

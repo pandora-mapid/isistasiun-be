@@ -1,0 +1,830 @@
+openapi: 3.0.3
+info:
+  title: Isi Stasiun Backend API
+  version: 1.0.0
+  description: REST API for station attributes, analytics, survey ingestion, pipeline callbacks, transparency, authentication, premium analysis, and AI copilot routing.
+servers:
+  - url: /
+    description: Current backend origin
+tags:
+  - name: Health
+  - name: Stations
+  - name: Analytics
+  - name: Confidence
+  - name: Copilot
+  - name: Survey
+  - name: Pipeline
+  - name: Transparency
+  - name: Authentication
+  - name: Premium
+paths:
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Check API process health
+      operationId: getHealth
+      responses:
+        "200":
+          description: API process is running
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Health"
+  /api/v1/stations:
+    get:
+      tags: [Stations]
+      summary: List stations
+      operationId: listStations
+      parameters:
+        - $ref: "#/components/parameters/AreaTypeQuery"
+        - name: operator
+          in: query
+          schema: {type: string}
+          description: Exact operator name filter
+      responses:
+        "200":
+          $ref: "#/components/responses/StationList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/stations/{id}:
+    get:
+      tags: [Stations]
+      summary: Get station detail
+      operationId: getStation
+      parameters:
+        - $ref: "#/components/parameters/StationIDPath"
+      responses:
+        "200":
+          description: Station detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data: {$ref: "#/components/schemas/Station"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/stations/{id}/entrances:
+    get:
+      tags: [Stations]
+      summary: List station entrances
+      operationId: listStationEntrances
+      parameters:
+        - $ref: "#/components/parameters/StationIDPath"
+      responses:
+        "200":
+          description: Entrance list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: {$ref: "#/components/schemas/Entrance"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/analytics/spending-gap:
+    get:
+      tags: [Analytics]
+      summary: List spending gap estimates
+      operationId: listSpendingGap
+      responses:
+        "200": {$ref: "#/components/responses/SpendingGapList"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/analytics/spending-gap/{station_id}:
+    get:
+      tags: [Analytics]
+      summary: List spending gap estimates for a station
+      operationId: listStationSpendingGap
+      parameters:
+        - $ref: "#/components/parameters/StationIDNamedPath"
+      responses:
+        "200": {$ref: "#/components/responses/SpendingGapList"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/analytics/category-gap:
+    get:
+      tags: [Analytics]
+      summary: List unmet business categories
+      operationId: listCategoryGap
+      parameters:
+        - $ref: "#/components/parameters/StationIDQuery"
+      responses:
+        "200":
+          description: Category gap list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: {$ref: "#/components/schemas/CategoryGap"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/analytics/rent-flow-index:
+    get:
+      tags: [Analytics]
+      summary: List rent-flow index results
+      operationId: listRentFlowIndex
+      parameters:
+        - $ref: "#/components/parameters/StationIDQuery"
+      responses:
+        "200":
+          description: Rent-flow index list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: {$ref: "#/components/schemas/RentFlowIndex"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/analytics/event-potential:
+    get:
+      tags: [Analytics]
+      summary: List event activation potential
+      operationId: listEventPotential
+      parameters:
+        - $ref: "#/components/parameters/StationIDQuery"
+      responses:
+        "200":
+          description: Event potential list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: {$ref: "#/components/schemas/EventPotential"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/confidence-layer:
+    get:
+      tags: [Confidence]
+      summary: List confidence and sample density attributes
+      operationId: listConfidenceLayer
+      parameters:
+        - $ref: "#/components/parameters/StationIDQuery"
+      responses:
+        "200":
+          description: Confidence layer attributes
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: {$ref: "#/components/schemas/ConfidenceLayerEntry"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/copilot/query:
+    post:
+      tags: [Copilot]
+      summary: Forward a natural-language query to the AI service
+      operationId: queryCopilot
+      description: Public but rate-limited. Upstream failures currently return a stable fallback answer with HTTP 200.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CopilotQueryRequest"}
+      responses:
+        "200":
+          description: AI response or degraded fallback
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data: {$ref: "#/components/schemas/CopilotQueryResponse"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/survey/flow-observations:
+    post:
+      tags: [Survey]
+      summary: Submit a pedestrian flow observation
+      operationId: createFlowObservation
+      security: [{ServiceKeyAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateFlowObservationRequest"}
+      responses:
+        "201": {$ref: "#/components/responses/CreatedID"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+    get:
+      tags: [Survey]
+      summary: List pedestrian flow observations for QA
+      operationId: listFlowObservations
+      security: [{ServiceKeyAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StationIDQuery"
+        - name: entrance_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: time_slot
+          in: query
+          schema: {$ref: "#/components/schemas/TimeSlot"}
+      responses:
+        "200":
+          description: At most 500 observations; current implementation may return null when empty
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        nullable: true
+                        items: {$ref: "#/components/schemas/FlowObservation"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/survey/entry-conversion-observations:
+    post:
+      tags: [Survey]
+      summary: Submit an entry and purchase conversion observation
+      operationId: createEntryConversionObservation
+      security: [{ServiceKeyAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateEntryConversionRequest"}
+      responses:
+        "201": {$ref: "#/components/responses/CreatedID"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+  /api/v1/pipeline/extractions/struk:
+    post:
+      tags: [Pipeline]
+      summary: Ingest receipt OCR output
+      operationId: ingestStrukExtraction
+      security: [{ServiceKeyAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/StrukExtractionCallback"}
+      responses:
+        "200": {$ref: "#/components/responses/Ingested"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/pipeline/extractions/properti:
+    post:
+      tags: [Pipeline]
+      summary: Ingest property OCR output
+      operationId: ingestPropertiExtraction
+      security: [{ServiceKeyAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PropertiExtractionCallback"}
+      responses:
+        "200": {$ref: "#/components/responses/Ingested"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/pipeline/extractions/gerai:
+    post:
+      tags: [Pipeline]
+      summary: Ingest store classification output
+      operationId: ingestGeraiExtraction
+      security: [{ServiceKeyAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/GeraiClassificationCallback"}
+      responses:
+        "200": {$ref: "#/components/responses/Ingested"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/pipeline/simulations/monte-carlo:
+    post:
+      tags: [Pipeline]
+      summary: Ingest a Monte Carlo spending-gap result
+      operationId: ingestMonteCarloResult
+      security: [{ServiceKeyAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/MonteCarloResultCallback"}
+      responses:
+        "200": {$ref: "#/components/responses/Ingested"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/transparency/struk/{id}:
+    get:
+      tags: [Transparency]
+      summary: Get receipt transparency record
+      operationId: getStrukTransparency
+      parameters: [{$ref: "#/components/parameters/RecordIDPath"}]
+      responses:
+        "200": {$ref: "#/components/responses/TransparencyRecord"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/transparency/gerai/{id}:
+    get:
+      tags: [Transparency]
+      summary: Get store transparency record
+      operationId: getGeraiTransparency
+      parameters: [{$ref: "#/components/parameters/RecordIDPath"}]
+      responses:
+        "200": {$ref: "#/components/responses/TransparencyRecord"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/transparency/properti/{id}:
+    get:
+      tags: [Transparency]
+      summary: Get property transparency record
+      operationId: getPropertiTransparency
+      parameters: [{$ref: "#/components/parameters/RecordIDPath"}]
+      responses:
+        "200": {$ref: "#/components/responses/TransparencyRecord"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/transparency/station/{id}/records:
+    get:
+      tags: [Transparency]
+      summary: List transparency records for a station
+      operationId: listStationTransparency
+      parameters: [{$ref: "#/components/parameters/StationIDPath"}]
+      responses:
+        "200":
+          description: Current implementation may return null when empty
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        nullable: true
+                        items: {$ref: "#/components/schemas/TransparencyRecord"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Log in an operator
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/TokenPair"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh an access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RefreshRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/TokenPair"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+  /api/v1/premium/deep-analysis/{station_id}:
+    get:
+      tags: [Premium]
+      summary: Get premium deep analysis
+      operationId: getPremiumDeepAnalysis
+      description: Placeholder endpoint; the analysis logic is not implemented yet.
+      security: [{BearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StationIDNamedPath"
+      responses:
+        "200":
+          description: Current placeholder response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data: {$ref: "#/components/schemas/DeepAnalysisPlaceholder"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+components:
+  securitySchemes:
+    ServiceKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Service-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    AreaTypeQuery:
+      name: area_type
+      in: query
+      schema: {$ref: "#/components/schemas/AreaType"}
+    StationIDPath:
+      name: id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    StationIDNamedPath:
+      name: station_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    StationIDQuery:
+      name: station_id
+      in: query
+      schema: {type: string, format: uuid}
+    RecordIDPath:
+      name: id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+    Forbidden:
+      description: Insufficient role
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+    StationList:
+      description: Station list
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/SuccessEnvelope"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: "#/components/schemas/Station"}
+    SpendingGapList:
+      description: Spending gap rows
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/SuccessEnvelope"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: "#/components/schemas/SpendingGap"}
+    CreatedID:
+      description: Record created
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/SuccessEnvelope"
+              - type: object
+                properties:
+                  data: {$ref: "#/components/schemas/CreatedID"}
+    Ingested:
+      description: Callback ingested
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/SuccessEnvelope"
+              - type: object
+                properties:
+                  data: {$ref: "#/components/schemas/Ingested"}
+    TransparencyRecord:
+      description: Transparency record
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/SuccessEnvelope"
+              - type: object
+                properties:
+                  data: {$ref: "#/components/schemas/TransparencyRecord"}
+    TokenPair:
+      description: Access and refresh tokens
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/SuccessEnvelope"
+              - type: object
+                properties:
+                  data: {$ref: "#/components/schemas/TokenPair"}
+  schemas:
+    SuccessEnvelope:
+      type: object
+      required: [success, message, data]
+      properties:
+        success: {type: boolean, enum: [true]}
+        message: {type: string}
+        data: {}
+    ErrorEnvelope:
+      type: object
+      required: [success, message, data]
+      properties:
+        success: {type: boolean, enum: [false]}
+        message: {type: string}
+        data: {nullable: true}
+    Health:
+      type: object
+      required: [app, version]
+      properties:
+        app: {type: string, example: Isi Stasiun Backend}
+        version: {type: string, example: 1.0.0}
+    AreaType:
+      type: string
+      enum: [residential, office, mixed]
+    TimeSlot:
+      type: string
+      enum: [morning, midday, evening, night]
+    Category:
+      type: string
+      enum: [makanan_minuman, ritel_kemasan, apotek_kesehatan, jasa, lainnya]
+    Station:
+      type: object
+      required: [id, name, code, operator, area_type, latitude, longitude, entrance_count]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        code: {type: string}
+        operator: {type: string}
+        area_type: {$ref: "#/components/schemas/AreaType"}
+        latitude: {type: number, format: double, minimum: -90, maximum: 90}
+        longitude: {type: number, format: double, minimum: -180, maximum: 180}
+        entrance_count: {type: integer, minimum: 0}
+    Entrance:
+      type: object
+      required: [id, label, latitude, longitude]
+      properties:
+        id: {type: string, format: uuid}
+        label: {type: string}
+        latitude: {type: number, format: double}
+        longitude: {type: number, format: double}
+    SpendingGap:
+      type: object
+      required: [station_id, station_name, potential_low_p10, potential_high_p90, captured_low_p10, captured_high_p90, gap_low_p10, gap_high_p90, time_slot, computed_at]
+      properties:
+        station_id: {type: string, format: uuid}
+        station_name: {type: string}
+        potential_low_p10: {type: number, format: double}
+        potential_high_p90: {type: number, format: double}
+        captured_low_p10: {type: number, format: double}
+        captured_high_p90: {type: number, format: double}
+        gap_low_p10: {type: number, format: double}
+        gap_high_p90: {type: number, format: double}
+        time_slot: {$ref: "#/components/schemas/TimeSlot"}
+        computed_at: {type: string, format: date-time}
+    CategoryGap:
+      type: object
+      required: [station_id, category, demand_in_area, available_in_station]
+      properties:
+        station_id: {type: string, format: uuid}
+        category: {$ref: "#/components/schemas/Category"}
+        demand_in_area: {type: boolean}
+        available_in_station: {type: boolean}
+    RentFlowIndex:
+      type: object
+      required: [plot_id, station_id, offered_rent, measured_flow, index, is_outlier]
+      properties:
+        plot_id: {type: string}
+        station_id: {type: string, format: uuid}
+        offered_rent: {type: number, format: double}
+        measured_flow: {type: number, format: double}
+        index: {type: number, format: double}
+        is_outlier: {type: boolean}
+    EventPotential:
+      type: object
+      required: [station_id, zone_id, activation_score, recommended_slot]
+      properties:
+        station_id: {type: string, format: uuid}
+        zone_id: {type: string}
+        activation_score: {type: number, format: double}
+        recommended_slot: {type: string, nullable: true}
+    ConfidenceLayerEntry:
+      type: object
+      required: [station_id, zone_id, sample_count, is_thin_sample, confidence_score]
+      properties:
+        station_id: {type: string, format: uuid}
+        zone_id: {type: string}
+        sample_count: {type: integer, minimum: 0}
+        is_thin_sample: {type: boolean}
+        confidence_score: {type: number, format: double}
+    CopilotQueryRequest:
+      type: object
+      required: [query]
+      properties:
+        query: {type: string, minLength: 1, maxLength: 500, example: "Stasiun mana yang memiliki spending gap tertinggi?"}
+        station_id: {type: string, format: uuid}
+    CopilotQueryResponse:
+      type: object
+      required: [answer]
+      properties:
+        answer: {type: string}
+        suggested_layers:
+          type: array
+          items: {type: string}
+        spatial_filter:
+          type: object
+          additionalProperties: true
+    CreateFlowObservationRequest:
+      type: object
+      required: [station_id, entrance_id, time_slot, observed_at, block_number, pedestrian_count, direction, surveyor_id]
+      properties:
+        station_id: {type: string, format: uuid}
+        entrance_id: {type: string, format: uuid}
+        time_slot: {$ref: "#/components/schemas/TimeSlot"}
+        observed_at: {type: string, format: date-time}
+        block_number: {type: integer, enum: [1, 2]}
+        pedestrian_count: {type: integer, minimum: 0}
+        direction: {type: string, enum: [in, out]}
+        weather_note: {type: string}
+        surveyor_id: {type: string}
+    FlowObservation:
+      allOf:
+        - $ref: "#/components/schemas/CreateFlowObservationRequest"
+        - type: object
+          required: [id, created_at]
+          properties:
+            id: {type: string, format: uuid}
+            created_at: {type: string, format: date-time}
+    CreateEntryConversionRequest:
+      type: object
+      required: [station_id, gerai_id, category, time_slot, observed_at, block_number, passers_by, entered_count, completed_purchase_count, surveyor_id]
+      properties:
+        station_id: {type: string, format: uuid}
+        gerai_id: {type: string, format: uuid}
+        category: {$ref: "#/components/schemas/Category"}
+        time_slot: {$ref: "#/components/schemas/TimeSlot"}
+        observed_at: {type: string, format: date-time}
+        block_number: {type: integer, enum: [1, 2]}
+        passers_by: {type: integer, minimum: 0}
+        entered_count: {type: integer, minimum: 0}
+        completed_purchase_count: {type: integer, minimum: 0}
+        surveyor_id: {type: string}
+    StrukExtractionCallback:
+      type: object
+      required: [job_id, source_ref, station_id, category, final_amount, payment_method, transacted_at, confidence, is_ambiguous]
+      properties:
+        job_id: {type: string}
+        source_ref: {type: string}
+        station_id: {type: string, format: uuid}
+        category: {$ref: "#/components/schemas/Category"}
+        final_amount: {type: number, format: double, minimum: 0}
+        payment_method: {type: string}
+        transacted_at: {type: string, format: date-time}
+        confidence: {type: number, format: double, minimum: 0, maximum: 1}
+        is_ambiguous: {type: boolean}
+    PropertiExtractionCallback:
+      type: object
+      required: [job_id, source_ref, station_id, plot_id, offered_rent, area_sqm, confidence]
+      properties:
+        job_id: {type: string}
+        source_ref: {type: string}
+        station_id: {type: string, format: uuid}
+        plot_id: {type: string}
+        offered_rent: {type: number, format: double, minimum: 0}
+        area_sqm: {type: number, format: double, minimum: 0}
+        confidence: {type: number, format: double, minimum: 0, maximum: 1}
+    GeraiClassificationCallback:
+      type: object
+      required: [job_id, source_ref, station_id, gerai_id, category, visibility, confidence]
+      properties:
+        job_id: {type: string}
+        source_ref: {type: string}
+        station_id: {type: string, format: uuid}
+        gerai_id: {type: string, format: uuid}
+        category: {$ref: "#/components/schemas/Category"}
+        visibility: {type: string, enum: [high, medium, low]}
+        confidence: {type: number, format: double, minimum: 0, maximum: 1}
+    MonteCarloResultCallback:
+      type: object
+      required: [job_id, station_id, time_slot, potential_low_p10, potential_high_p90, captured_low_p10, captured_high_p90, iterations]
+      properties:
+        job_id: {type: string}
+        station_id: {type: string, format: uuid}
+        time_slot: {$ref: "#/components/schemas/TimeSlot"}
+        potential_low_p10: {type: number, format: double}
+        potential_high_p90: {type: number, format: double}
+        captured_low_p10: {type: number, format: double}
+        captured_high_p90: {type: number, format: double}
+        iterations: {type: integer, minimum: 1}
+    CreatedID:
+      type: object
+      required: [id]
+      properties:
+        id: {type: string, format: uuid}
+    Ingested:
+      type: object
+      required: [job_id, status]
+      properties:
+        job_id: {type: string}
+        status: {type: string, enum: [ingested]}
+    TransparencyRecord:
+      type: object
+      required: [id, type, station_id, photo_url, ai_reading, confidence_score, is_ambiguous]
+      properties:
+        id: {type: string, format: uuid}
+        type: {type: string, enum: [struk, gerai, properti]}
+        station_id: {type: string, format: uuid}
+        photo_url: {type: string, format: uri}
+        ai_reading: {type: string, description: JSON or summary encoded as text}
+        confidence_score: {type: number, format: double}
+        is_ambiguous: {type: boolean}
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: {type: string, format: email}
+        password: {type: string, format: password}
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: {type: string}
+    TokenPair:
+      type: object
+      required: [access_token, refresh_token, expires_in]
+      properties:
+        access_token: {type: string}
+        refresh_token: {type: string}
+        expires_in: {type: integer, description: Access token lifetime in seconds}
+    DeepAnalysisPlaceholder:
+      type: object
+      required: [station_id, note]
+      properties:
+        station_id: {type: string}
+        note: {type: string, example: deep-analysis not yet implemented}

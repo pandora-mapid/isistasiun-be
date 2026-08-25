@@ -23,7 +23,8 @@ type Config struct {
 	AIServiceURL            string
 	AIServiceTimeoutSeconds int
 
-	RateLimitRPM int
+	RateLimitRPM   int
+	TrustedProxies []string
 
 	CORSAllowedOrigins []string
 }
@@ -47,10 +48,22 @@ func Load() *Config {
 		AIServiceURL:            getEnv("AI_SERVICE_URL", "http://localhost:8000"),
 		AIServiceTimeoutSeconds: getEnvInt("AI_SERVICE_TIMEOUT_SECONDS", 15),
 
-		RateLimitRPM: getEnvInt("RATE_LIMIT_RPM", 60),
+		RateLimitRPM:   getEnvInt("RATE_LIMIT_RPM", 60),
+		TrustedProxies: getEnvList("TRUSTED_PROXIES", ""),
 
-		CORSAllowedOrigins: strings.Split(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"), ","),
+		CORSAllowedOrigins: getEnvList("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
 	}
+}
+
+func getEnvList(key, fallback string) []string {
+	values := strings.Split(getEnv(key, fallback), ",")
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func (c *Config) IsProduction() bool {

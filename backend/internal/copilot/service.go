@@ -2,7 +2,7 @@ package copilot
 
 import (
 	"context"
-	"fmt"
+	"log"
 )
 
 // Service is the routing-only layer Priyapta owns: validation, forwarding,
@@ -11,20 +11,23 @@ import (
 // service call, or by replacing Client with a direct in-process call into
 // Firaz's package once that's ready.
 type Service struct {
-	client *Client
+	client queryClient
 }
 
-func NewService(client *Client) *Service {
+type queryClient interface {
+	Query(ctx context.Context, req QueryRequest) (*QueryResponse, error)
+}
+
+func NewService(client queryClient) *Service {
 	return &Service{client: client}
 }
 
 func (s *Service) Query(ctx context.Context, req QueryRequest) (*QueryResponse, error) {
 	resp, err := s.client.Query(ctx, req)
 	if err != nil {
-		// Fallback per section 3.6: keep the endpoint resilient even if the
-		// AI service is degraded — never block the map UI on copilot failures.
+		log.Print("copilot upstream request failed")
 		return &QueryResponse{
-			Answer: fmt.Sprintf("Maaf, AI copilot sedang tidak tersedia. Coba lagi sebentar lagi. (%v)", err),
+			Answer: "Maaf, AI copilot sedang tidak tersedia. Coba lagi sebentar lagi.",
 		}, nil
 	}
 	return resp, nil

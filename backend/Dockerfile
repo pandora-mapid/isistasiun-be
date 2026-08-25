@@ -1,18 +1,19 @@
 # ---- dev target: hot reload with air ----
-FROM golang:1.22-alpine AS dev
+FROM golang:1.25-alpine AS dev
 RUN apk add --no-cache git
 WORKDIR /app
-RUN go install github.com/air-verse/air@latest
-COPY go.mod ./
+ARG AIR_VERSION=v1.67.0
+RUN go install github.com/air-verse/air@${AIR_VERSION}
+COPY go.mod go.sum ./
 RUN go mod download || true
 COPY . .
 EXPOSE 8080
 CMD ["air", "-c", ".air.toml"]
 
 # ---- build stage ----
-FROM golang:1.22-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /app
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/api ./cmd/api

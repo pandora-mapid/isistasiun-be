@@ -4,6 +4,8 @@ services:
   backend:
     build:
       target: prod
+    environment:
+      APP_ENV: production
     volumes: []
     restart: always
 

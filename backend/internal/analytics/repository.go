@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"context"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -24,10 +25,21 @@ func (r *Repository) SpendingGap(ctx context.Context, stationID string) ([]Spend
 		       g.time_slot, g.computed_at
 		FROM spending_gap_estimates g
 		JOIN stations s ON s.id = g.station_id
-		WHERE ($1 = '' OR g.station_id = $1)
-		ORDER BY g.time_slot ASC
 	`
-	rows, err := r.db.Query(ctx, query, stationID)
+	args := make([]any, 0, 1)
+	if stationID != "" {
+		query += " WHERE g.station_id = $1"
+		args = append(args, stationID)
+	}
+	query += ` ORDER BY s.name ASC, g.station_id ASC,
+		CASE g.time_slot
+			WHEN 'morning' THEN 1
+			WHEN 'midday' THEN 2
+			WHEN 'evening' THEN 3
+			WHEN 'night' THEN 4
+		END ASC`
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -52,9 +64,10 @@ func (r *Repository) CategoryGap(ctx context.Context, stationID string) ([]Categ
 	query := `
 		SELECT station_id, category, demand_in_area, available_in_station
 		FROM category_gap_estimates
-		WHERE ($1 = '' OR station_id = $1)
 	`
-	rows, err := r.db.Query(ctx, query, stationID)
+	query, args := withOptionalStationFilter(query, stationID)
+	query += " ORDER BY station_id ASC, category ASC"
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -75,9 +88,10 @@ func (r *Repository) RentFlowIndex(ctx context.Context, stationID string) ([]Ren
 	query := `
 		SELECT plot_id, station_id, offered_rent, measured_flow, index_value, is_outlier
 		FROM rent_flow_index
-		WHERE ($1 = '' OR station_id = $1)
 	`
-	rows, err := r.db.Query(ctx, query, stationID)
+	query, args := withOptionalStationFilter(query, stationID)
+	query += " ORDER BY station_id ASC, plot_id ASC"
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -98,10 +112,10 @@ func (r *Repository) EventPotential(ctx context.Context, stationID string) ([]Ev
 	query := `
 		SELECT station_id, zone_id, activation_score, recommended_slot
 		FROM event_potential_scores
-		WHERE ($1 = '' OR station_id = $1)
-		ORDER BY activation_score DESC
 	`
-	rows, err := r.db.Query(ctx, query, stationID)
+	query, args := withOptionalStationFilter(query, stationID)
+	query += " ORDER BY activation_score DESC, station_id ASC, zone_id ASC"
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,4 +130,11 @@ func (r *Repository) EventPotential(ctx context.Context, stationID string) ([]Ev
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+func withOptionalStationFilter(query, stationID string) (string, []any) {
+	if stationID == "" {
+		return strings.TrimSpace(query), nil
+	}
+	return strings.TrimSpace(query) + " WHERE station_id = $1", []any{stationID}
 }

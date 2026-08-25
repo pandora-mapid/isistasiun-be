@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -21,7 +22,7 @@ type Client struct {
 
 func NewClient(baseURL string, timeoutSeconds int) *Client {
 	return &Client{
-		baseURL: baseURL,
+		baseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/"),
 		http:    &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second},
 	}
 }
@@ -45,13 +46,17 @@ func (c *Client) Query(ctx context.Context, req QueryRequest) (*QueryResponse, e
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("ai service error (%d): %s", resp.StatusCode, string(respBody))
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("ai service error (%d)", resp.StatusCode)
 	}
 
 	var out QueryResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
 		return nil, fmt.Errorf("decode ai service response: %w", err)
+	}
+	out.Answer = strings.TrimSpace(out.Answer)
+	if out.Answer == "" {
+		return nil, fmt.Errorf("ai service response has an empty answer")
 	}
 	return &out, nil
 }

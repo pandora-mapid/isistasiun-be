@@ -22,10 +22,17 @@ func main() {
 	}
 	defer db.Close()
 
-	app := fiber.New(fiber.Config{
+	fiberConfig := fiber.Config{
 		AppName:      "Isi Stasiun API",
 		ErrorHandler: fiberErrorHandler,
-	})
+	}
+	if len(cfg.TrustedProxies) > 0 {
+		fiberConfig.EnableTrustedProxyCheck = true
+		fiberConfig.EnableIPValidation = true
+		fiberConfig.TrustedProxies = cfg.TrustedProxies
+		fiberConfig.ProxyHeader = fiber.HeaderXForwardedFor
+	}
+	app := fiber.New(fiberConfig)
 
 	app.Use(recover.New())
 	app.Use(middleware.RequestLogger())

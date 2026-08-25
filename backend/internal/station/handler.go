@@ -1,6 +1,7 @@
 package station
 
 import (
+	"context"
 	"errors"
 
 	"github.com/gofiber/fiber/v2"
@@ -10,10 +11,16 @@ import (
 )
 
 type Handler struct {
-	svc *Service
+	svc stationService
 }
 
-func NewHandler(svc *Service) *Handler {
+type stationService interface {
+	ListStations(ctx context.Context, areaType, operator string) ([]StationResponse, error)
+	GetStation(ctx context.Context, id string) (*StationResponse, error)
+	ListEntrances(ctx context.Context, stationID string) ([]EntranceResponse, error)
+}
+
+func NewHandler(svc stationService) *Handler {
 	return &Handler{svc: svc}
 }
 
@@ -29,12 +36,24 @@ func (h *Handler) ListStations(c *fiber.Ctx) error {
 	if err := c.QueryParser(&q); err != nil {
 		return response.BadRequest(c, "Format query parameter tidak valid")
 	}
+	if q.AreaType != "" && !isValidAreaType(q.AreaType) {
+		return response.BadRequest(c, "Area type harus residential, office, atau mixed")
+	}
 
 	stations, err := h.svc.ListStations(c.Context(), q.AreaType, q.Operator)
 	if err != nil {
 		return response.Internal(c, "Gagal mengambil daftar stasiun")
 	}
 	return response.OKWithMessage(c, "Berhasil mengambil daftar stasiun", stations)
+}
+
+func isValidAreaType(value string) bool {
+	switch AreaType(value) {
+	case AreaTypeResidential, AreaTypeOffice, AreaTypeMixed:
+		return true
+	default:
+		return false
+	}
 }
 
 func (h *Handler) GetStation(c *fiber.Ctx) error {

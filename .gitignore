@@ -1,0 +1,18 @@
+# Local environment and secrets
+.env
+**/.env
+
+# Go build and hot-reload output
+backend/tmp/
+backend/api.exe
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

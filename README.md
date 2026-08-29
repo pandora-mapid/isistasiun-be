@@ -72,16 +72,61 @@ air
 
 **Pipeline** (jalankan job manual, bukan long-running server):
 ```bash
+# OCR / klasifikasi batch (butuh GEMINI_API_KEY)
 docker compose exec pipeline python main.py extract-struk \
   --station-id <uuid> --job-id <job-id> --images-dir /app/data/struk
+docker compose exec pipeline python main.py extract-properti \
+  --station-id <uuid> --job-id <job-id> --images-dir /app/data/properti --manifest /app/data/plots.json
+docker compose exec pipeline python main.py extract-gerai \
+  --station-id <uuid> --job-id <job-id> --images-dir /app/data/gerai --manifest /app/data/gerai.json
+
+# Simulasi Monte Carlo spending-gap (baca survey + struk_extractions dari Postgres)
+docker compose exec pipeline python main.py simulate \
+  --station-id <uuid> --job-id <job-id> --time-slot morning
+
+# Test logika pipeline (parsing nominal struk, normalisasi kategori, Monte Carlo)
+docker compose exec pipeline python -m pytest -q
 ```
+
+`--manifest` opsional: JSON `{"G-07.jpg": {"gerai_id": "<uuid>"}}` memetakan
+nama file foto ke id UUID dari lembar inventaris survei. Tanpa manifest,
+id diambil dari nama file (hanya valid kalau tim survei menamai file dengan UUID).
 
 ## Migrations
 
-Skema ada di `backend/migrations/*.sql` (format `golang-migrate`). Install
-[golang-migrate](https://github.com/golang-migrate/migrate) CLI untuk
-apply/rollback manual, atau tambahkan ke Dockerfile image kalau mau otomatis
-lewat `make be-migrate-up`.
+Skema ada di `backend/migrations/*.sql` (format `golang-migrate`).
+
+- **Lokal:** `make be-migrate-up` / `make be-migrate-down` — pakai image
+  `migrate/migrate` lewat compose profile `tools`, nggak perlu install CLI.
+- **Server:** binary `migrate` ikut di image prod (`backend/Dockerfile`), dan
+  service `migrate` di `docker-compose.deploy.yml` menjalankannya sekali tiap
+  `up` sebelum `backend` start (`depends_on: service_completed_successfully`).
+
+## Deploy (VPS + CI/CD)
+
+CI (`.github/workflows/ci.yml`) jalan tiap PR/push: `go vet` + `go test` +
+`pytest` + build image. Deploy dev (`deploy-dev.yml`) jalan tiap push ke `dev`:
+build & push image ke `ghcr.io/pandora-mapid/isistasiun-be/{api,pipeline}` →
+SSH ke VPS → `docker compose pull && up -d` → cek `/healthz`.
+
+**Sekali di server** (`/opt/isistasiun`, setelah deploy pertama nge-scp file ke sini):
+
+```bash
+cp .env.deploy.example .env      # isi semua CHANGE_ME (DATABASE_URL & POSTGRES_PASSWORD harus konsisten)
+# pastikan DNS SERVER_NAME sudah mengarah ke box ini
+./scripts/init-letsencrypt.sh    # dummy cert -> start stack -> real cert -> up -d
+```
+
+Deploy berikutnya cukup `git push` ke `dev` — workflow yang `pull && up -d`.
+
+- `.env` di server **tidak** disentuh CI — itu satu-satunya sumber kebenaran.
+  `IMAGE_TAG` di-overwrite tiap deploy ke tag per-commit.
+- Container `pipeline` di-gate profile `batch` (tidak nyala terus). Jalankan job:
+  `make pipeline-job ARGS="extract-struk --station-id <uuid> --job-id j1 --images-dir /app/data/struk"`
+- GitHub Secrets yang dipakai: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (deploy key
+  khusus, bukan key pribadi), `GHCR_PAT` (PAT classic, scope `write:packages` +
+  `read:packages` — dipakai buat push image & buat VPS pull image privat).
+- VPS wajib: Docker + compose plugin, swap (RAM 2GB), port 80/443 terbuka.
 
 ## Catatan Arsitektur
 

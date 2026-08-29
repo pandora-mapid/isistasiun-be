@@ -1,5 +1,7 @@
-.PHONY: up down logs be-run be-test be-migrate-up be-migrate-down be-operator pipeline-shell fmt
+.PHONY: up down logs be-run be-test be-migrate-up be-migrate-down be-operator \
+        pipeline-shell fmt deploy-pull deploy-logs pipeline-job tls-init
 
+# ---- local dev ----
 up:
 	docker compose up -d --build
 
@@ -22,13 +24,31 @@ be-operator:
 	cd backend && go run ./cmd/createoperator -email $(EMAIL) -role $(or $(ROLE),operator)
 
 be-migrate-up:
-	docker compose exec backend migrate -path /app/migrations -database "$${DATABASE_URL}" up
+	docker compose --profile tools run --rm migrate 'migrate -path /migrations -database "$$DATABASE_URL" up'
 
 be-migrate-down:
-	docker compose exec backend migrate -path /app/migrations -database "$${DATABASE_URL}" down 1
+	docker compose --profile tools run --rm migrate 'migrate -path /migrations -database "$$DATABASE_URL" down 1'
 
 pipeline-shell:
 	docker compose exec pipeline bash
 
 fmt:
 	cd backend && gofmt -w .
+
+# ---- server (run on the VPS, in /opt/isistasiun) ----
+DEPLOY_COMPOSE = docker compose -f docker-compose.deploy.yml --env-file .env
+
+deploy-pull:
+	$(DEPLOY_COMPOSE) pull
+	$(DEPLOY_COMPOSE) up -d --remove-orphans
+
+deploy-logs:
+	$(DEPLOY_COMPOSE) logs -f --tail=100
+
+# One-off batch job on the server:
+#   make pipeline-job ARGS="extract-struk --station-id <uuid> --job-id j1 --images-dir /app/data/struk"
+pipeline-job:
+	$(DEPLOY_COMPOSE) --profile batch run --rm pipeline python main.py $(ARGS)
+
+tls-init:
+	./scripts/init-letsencrypt.sh

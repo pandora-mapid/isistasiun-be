@@ -1,0 +1,105 @@
+name: Deploy (dev)
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+env:
+  IMAGE_BASE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+      - name: Build & push api
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          target: prod
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}/api:dev
+            ${{ env.IMAGE_BASE }}/api:dev-${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - name: Build & push pipeline
+        uses: docker/build-push-action@v6
+        with:
+          context: ./pipeline
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}/pipeline:dev
+            ${{ env.IMAGE_BASE }}/pipeline:dev-${{ github.sha }}
+          cache-from: type=gha,scope=pipeline
+          cache-to: type=gha,mode=max,scope=pipeline
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy stack files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "docker-compose.deploy.yml,Makefile,.env.deploy.example,nginx/templates/,scripts/"
+          target: /opt/isistasiun
+          overwrite: true
+
+      - name: Pull & restart on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: GHCR_USER,GHCR_TOKEN,IMAGE_TAG
+          script: |
+            set -e
+            cd /opt/isistasiun
+            test -f .env || { echo "::error::/opt/isistasiun/.env is missing — create it from .env.deploy.example"; exit 1; }
+
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+            # Pin this deploy to the immutable per-commit tag.
+            grep -q '^IMAGE_TAG=' .env && sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_TAG}|" .env || echo "IMAGE_TAG=${IMAGE_TAG}" >> .env
+
+            COMPOSE="docker compose -f docker-compose.deploy.yml --env-file .env"
+            $COMPOSE pull
+            $COMPOSE up -d --remove-orphans
+            docker logout ghcr.io || true
+            docker image prune -f
+
+            echo "waiting for health..."
+            for i in $(seq 1 20); do
+              if curl -fsS http://localhost:8080/healthz >/dev/null 2>&1 \
+                 || docker compose -f docker-compose.deploy.yml exec -T backend wget -qO- http://localhost:8080/healthz >/dev/null 2>&1; then
+                echo "healthy"; exit 0
+              fi
+              sleep 3
+            done
+            echo "::error::backend did not become healthy"
+            $COMPOSE logs --tail=60 backend migrate
+            exit 1
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_PAT }}
+          IMAGE_TAG: dev-${{ github.sha }}

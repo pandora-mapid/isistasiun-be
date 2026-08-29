@@ -36,6 +36,19 @@ services:
       postgres:
         condition: service_healthy
 
+  # `make be-migrate-up` / `be-migrate-down`. Not started by `up`.
+  migrate:
+    image: migrate/migrate:v4.17.1
+    profiles: [tools]
+    env_file: .env
+    volumes:
+      - ./backend/migrations:/migrations
+    entrypoint: ["/bin/sh", "-c"]
+    command: 'migrate -path /migrations -database "$$DATABASE_URL" up'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   pipeline:
     build:
       context: ./pipeline

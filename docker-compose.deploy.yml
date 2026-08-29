@@ -1,0 +1,111 @@
+# Server stack (dev or prod box). Self-contained — not an overlay on
+# docker-compose.yml. All per-environment values come from .env on the box,
+# which the deploy workflow regenerates from GitHub Secrets on every run.
+#
+#   docker compose -f docker-compose.deploy.yml --env-file .env up -d
+#
+# The pipeline container is behind the "batch" profile: `up` never starts it,
+# run a job with
+#   docker compose -f docker-compose.deploy.yml --env-file .env \
+#     --profile batch run --rm pipeline python main.py <job> ...
+
+name: ${COMPOSE_PROJECT_NAME:-isistasiun}
+
+x-images:
+  api: &api_image ghcr.io/pandora-mapid/isistasiun-be/api:${IMAGE_TAG:-dev}
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: always
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging: &logging
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+  migrate:
+    image: *api_image
+    pull_policy: always
+    restart: "no"
+    env_file: .env
+    entrypoint: ["sh", "-c", "migrate -path /app/migrations -database \"$$DATABASE_URL\" up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
+  backend:
+    image: *api_image
+    pull_policy: always
+    restart: always
+    env_file: .env
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL}
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: always
+    environment:
+      SERVER_NAME: ${SERVER_NAME:?set SERVER_NAME in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+    depends_on:
+      - backend
+    # reload every 6h so a renewed certificate is picked up without a restart
+    command: >
+      sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"
+    logging: *logging
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+    entrypoint: >
+      sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
+
+  pipeline:
+    image: ghcr.io/pandora-mapid/isistasiun-be/pipeline:${IMAGE_TAG:-dev}
+    pull_policy: always
+    profiles: [batch]
+    restart: "no"
+    env_file: .env
+    command: ["python", "--version"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
+volumes:
+  pgdata:

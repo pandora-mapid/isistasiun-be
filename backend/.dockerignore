@@ -1,0 +1,12 @@
+.git
+tmp/
+bin/
+*.exe
+*.test
+*.out
+.air.toml
+.env
+.env.local
+.env.production
+Dockerfile
+.dockerignore

@@ -18,9 +18,13 @@ __pycache__/
 Thumbs.db
 
 # Other env variants. `.env` above does not match `.env.local` / `.env.production`,
-# and `.env.example` must stay tracked — the README tells you to copy it.
+# and the *.example files must stay tracked — the README tells you to copy them.
 .env.*
 !.env.example
+!.env.deploy.example
+
+# Let's Encrypt state, created on the server by the certbot container.
+nginx/certbot/
 
 # Go test and build artifacts not covered above
 /backend/bin/
@@ -33,5 +37,7 @@ Proposal_IsiStasiun.pdf
 ListPandora_1__IsiStasiun_docx.pdf
 BACKEND_TASK_DIVISION_3_PERSON.md
 Brainstorm_Claude_-_MAPID.md
+Brainstorm Claude - *.md
+ListPandora*.md
 *.pdf
 *.docx

@@ -60,7 +60,7 @@ func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 	authHandler.RegisterRoutes(api)
 
 	// ---- Firaz: premium (JWT + operator role required) ----
-	premiumHandler := premium.NewHandler(db)
+	premiumHandler := premium.NewHandler(premium.NewService(premium.NewRepository(db)))
 	premiumGroup := api.Group("", middleware.RequireAuth(cfg.JWTSecret), middleware.RequireRole(string(auth.RoleOperator), string(auth.RoleAdmin)))
 	premiumHandler.RegisterRoutes(premiumGroup)
 

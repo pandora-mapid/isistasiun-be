@@ -43,7 +43,18 @@ pipeline callback · Firaz: transparency/auth/premium/copilot-logic).
 cp .env.example .env        # isi API key MAPID, Gemini, JWT secret, dll
 make up                      # docker compose up -d --build
 make be-migrate-up           # jalankan migration (butuh golang-migrate, lihat catatan di bawah)
+make be-test                 # go test ./... — tier akses + klasifikasi copilot
 ```
+
+Buat akun operator untuk tier premium (password dibaca dari env, bukan flag,
+supaya tidak masuk shell history):
+
+```bash
+OPERATOR_PASSWORD=... go run ./cmd/createoperator -email ops@kai.id -role operator
+```
+
+Sengaja tidak ada seed migration untuk ini — migration akan meng-commit hash
+password ke repo dan menyamakan kredensial di semua checkout.
 
 - Backend API: http://localhost:8080/api/v1 (health check: `/healthz`)
 - Swagger UI (development only): http://localhost:8080/docs
@@ -76,10 +87,18 @@ lewat `make be-migrate-up`.
 
 - Vector tile geometry **tidak** lewat Go API sebagai payload berat —
   dilayani via Nginx (`location /tiles/`), API cuma handle attribute data.
+- **Middleware dipasang dengan `Use("<prefix>", …)`, bukan `Group("", …)`.**
+  `Group("")` di Fiber sama dengan `Use("/api/v1", …)` — berlaku ke setiap
+  route yang didaftarkan sesudahnya. Pola itu sempat membuat transparency,
+  auth, dan premium ikut menuntut `X-Service-Key` dan semuanya menjawab 401.
+  `internal/router/router_test.go` mengunci tier tiap route supaya tidak
+  terulang.
 - Endpoint `/copilot/query` di-split: routing/rate-limit di Priyapta
   (`internal/copilot/handler.go`), logic AI di Firaz
-  (`internal/copilot/service.go` — saat ini masih fallback response, ganti
-  `Client.Query` untuk connect ke AI service asli).
+  (`internal/copilot/intent.go` + `service.go`). Tiap query diklasifikasikan
+  lokal lebih dulu — intent, kategori, dan slot waktu — lalu diperkaya model
+  lewat `Client.Query` kalau `AI_SERVICE_URL` menjawab. Kalau tidak, endpoint
+  tetap mengembalikan filter dan jawaban yang benar, cuma prosanya lebih kaku.
 - Semua endpoint pipeline callback (`/pipeline/*`) dan survey ingestion
   (`/survey/*`) diproteksi `X-Service-Key`, bukan JWT — lihat
   `middleware.RequireServiceKey`.

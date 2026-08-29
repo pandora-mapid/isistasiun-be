@@ -1,4 +1,4 @@
-.PHONY: up down logs be-run be-migrate-up be-migrate-down pipeline-shell fmt
+.PHONY: up down logs be-run be-test be-migrate-up be-migrate-down be-operator pipeline-shell fmt
 
 up:
 	docker compose up -d --build
@@ -12,6 +12,14 @@ logs:
 # Run Go API locally with hot reload (requires air: go install github.com/air-verse/air@latest)
 be-run:
 	cd backend && air
+
+be-test:
+	cd backend && go test ./... -count=1
+
+# Buat/rotasi akun operator. Password lewat env, bukan flag.
+#   OPERATOR_PASSWORD=... make be-operator EMAIL=ops@kai.id
+be-operator:
+	cd backend && go run ./cmd/createoperator -email $(EMAIL) -role $(or $(ROLE),operator)
 
 be-migrate-up:
 	docker compose exec backend migrate -path /app/migrations -database "$${DATABASE_URL}" up

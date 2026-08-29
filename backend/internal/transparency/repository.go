@@ -11,13 +11,13 @@ import (
 var ErrNotFound = errors.New("transparency record not found")
 
 type Record struct {
-	ID            string  `json:"id"`
-	Type          string  `json:"type"` // "struk" | "gerai" | "properti"
-	StationID     string  `json:"station_id"`
-	PhotoURL      string  `json:"photo_url"`      // R2 public URL
-	AIReading     string  `json:"ai_reading"`      // structured JSON as text, or summary
+	ID              string  `json:"id"`
+	Type            string  `json:"type"` // "struk" | "gerai" | "properti"
+	StationID       string  `json:"station_id"`
+	PhotoURL        string  `json:"photo_url"`  // R2 public URL
+	AIReading       string  `json:"ai_reading"` // structured JSON as text, or summary
 	ConfidenceScore float64 `json:"confidence_score"`
-	IsAmbiguous   bool    `json:"is_ambiguous"`
+	IsAmbiguous     bool    `json:"is_ambiguous"`
 }
 
 type Repository struct {
@@ -77,7 +77,10 @@ func (r *Repository) ListByStation(ctx context.Context, stationID string) ([]Rec
 	}
 	defer rows.Close()
 
-	var out []Record
+	// Non-nil so an empty result marshals as [] rather than null: the frontend's
+	// unwrap() in lib/data/source.ts treats a null data field as a failure, which
+	// would render "no records yet" as "failed to load".
+	var out = make([]Record, 0)
 	for rows.Next() {
 		var rec Record
 		if err := rows.Scan(&rec.ID, &rec.Type, &rec.StationID, &rec.PhotoURL, &rec.AIReading, &rec.ConfidenceScore, &rec.IsAmbiguous); err != nil {

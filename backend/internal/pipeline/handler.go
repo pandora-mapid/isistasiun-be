@@ -1,16 +1,26 @@
 package pipeline
 
 import (
+	"context"
+
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/list-pandora/isi-stasiun-backend/internal/response"
+	"github.com/list-pandora/isi-stasiun-backend/internal/validate"
 )
 
 type Handler struct {
-	svc *Service
+	svc pipelineService
 }
 
-func NewHandler(svc *Service) *Handler {
+type pipelineService interface {
+	IngestStrukExtraction(ctx context.Context, cb StrukExtractionCallback) error
+	IngestPropertiExtraction(ctx context.Context, cb PropertiExtractionCallback) error
+	IngestGeraiClassification(ctx context.Context, cb GeraiClassificationCallback) error
+	IngestMonteCarloResult(ctx context.Context, cb MonteCarloResultCallback) error
+}
+
+func NewHandler(svc pipelineService) *Handler {
 	return &Handler{svc: svc}
 }
 
@@ -28,6 +38,14 @@ func (h *Handler) StrukExtraction(c *fiber.Ctx) error {
 	if err := c.BodyParser(&cb); err != nil {
 		return response.BadRequest(c, "invalid payload")
 	}
+	if msg := validate.Struct(&cb); msg != "" {
+		return response.BadRequest(c, msg)
+	}
+	// An ambiguous receipt is still recorded (it counts toward the coverage
+	// rate) but carries no amount; a non-ambiguous one must have a real total.
+	if !cb.IsAmbiguous && cb.FinalAmount <= 0 {
+		return response.BadRequest(c, "final_amount must be positive unless is_ambiguous is true")
+	}
 	if err := h.svc.IngestStrukExtraction(c.Context(), cb); err != nil {
 		return response.Internal(c, "failed to persist struk extraction")
 	}
@@ -38,6 +56,9 @@ func (h *Handler) PropertiExtraction(c *fiber.Ctx) error {
 	var cb PropertiExtractionCallback
 	if err := c.BodyParser(&cb); err != nil {
 		return response.BadRequest(c, "invalid payload")
+	}
+	if msg := validate.Struct(&cb); msg != "" {
+		return response.BadRequest(c, msg)
 	}
 	if err := h.svc.IngestPropertiExtraction(c.Context(), cb); err != nil {
 		return response.Internal(c, "failed to persist properti extraction")
@@ -50,6 +71,9 @@ func (h *Handler) GeraiExtraction(c *fiber.Ctx) error {
 	if err := c.BodyParser(&cb); err != nil {
 		return response.BadRequest(c, "invalid payload")
 	}
+	if msg := validate.Struct(&cb); msg != "" {
+		return response.BadRequest(c, msg)
+	}
 	if err := h.svc.IngestGeraiClassification(c.Context(), cb); err != nil {
 		return response.Internal(c, "failed to persist gerai classification")
 	}
@@ -60,6 +84,9 @@ func (h *Handler) MonteCarloResult(c *fiber.Ctx) error {
 	var cb MonteCarloResultCallback
 	if err := c.BodyParser(&cb); err != nil {
 		return response.BadRequest(c, "invalid payload")
+	}
+	if msg := validate.Struct(&cb); msg != "" {
+		return response.BadRequest(c, msg)
 	}
 	if err := h.svc.IngestMonteCarloResult(c.Context(), cb); err != nil {
 		return response.Internal(c, "failed to persist monte carlo result")

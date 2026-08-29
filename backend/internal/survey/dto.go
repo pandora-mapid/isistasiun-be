@@ -15,7 +15,7 @@ type CreateFlowObservationRequest struct {
 type CreateEntryConversionRequest struct {
 	StationID              string `json:"station_id" validate:"required"`
 	GeraiID                string `json:"gerai_id" validate:"required"`
-	Category               string `json:"category" validate:"required"`
+	Category               string `json:"category" validate:"required,oneof=makanan_minuman ritel_kemasan apotek_kesehatan jasa lainnya"`
 	TimeSlot               string `json:"time_slot" validate:"required,oneof=morning midday evening night"`
 	ObservedAt             string `json:"observed_at" validate:"required"`
 	BlockNumber            int    `json:"block_number" validate:"required,min=1,max=2"`

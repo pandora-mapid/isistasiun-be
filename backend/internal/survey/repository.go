@@ -16,17 +16,22 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 }
 
 func (r *Repository) InsertFlowObservation(ctx context.Context, o FlowObservation) (string, error) {
+	// NULLIF keeps the empty (no-header) case out of the partial unique index,
+	// so those rows never collide. When a key is present, ON CONFLICT's no-op
+	// UPDATE lets RETURNING hand back the original row's id — idempotent replay.
 	query := `
 		INSERT INTO flow_observations
 			(station_id, entrance_id, time_slot, observed_at, block_number,
-			 pedestrian_count, direction, weather_note, surveyor_id)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+			 pedestrian_count, direction, weather_note, surveyor_id, idempotency_key)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NULLIF($10,''))
+		ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL
+		DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
 		RETURNING id
 	`
 	var id string
 	err := r.db.QueryRow(ctx, query,
 		o.StationID, o.EntranceID, o.TimeSlot, o.ObservedAt, o.BlockNumber,
-		o.PedestrianCount, o.Direction, o.WeatherNote, o.SurveyorID,
+		o.PedestrianCount, o.Direction, o.WeatherNote, o.SurveyorID, o.IdempotencyKey,
 	).Scan(&id)
 	return id, err
 }
@@ -35,14 +40,16 @@ func (r *Repository) InsertEntryConversion(ctx context.Context, o EntryConversio
 	query := `
 		INSERT INTO entry_conversion_observations
 			(station_id, gerai_id, category, time_slot, observed_at, block_number,
-			 passers_by, entered_count, completed_purchase_count, surveyor_id)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+			 passers_by, entered_count, completed_purchase_count, surveyor_id, idempotency_key)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULLIF($11,''))
+		ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL
+		DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
 		RETURNING id
 	`
 	var id string
 	err := r.db.QueryRow(ctx, query,
 		o.StationID, o.GeraiID, o.Category, o.TimeSlot, o.ObservedAt, o.BlockNumber,
-		o.PassersBy, o.EnteredCount, o.CompletedPurchaseCount, o.SurveyorID,
+		o.PassersBy, o.EnteredCount, o.CompletedPurchaseCount, o.SurveyorID, o.IdempotencyKey,
 	).Scan(&id)
 	return id, err
 }

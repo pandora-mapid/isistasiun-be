@@ -1,0 +1,144 @@
+package pipeline
+
+import (
+	"context"
+	"encoding/json"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/stretchr/testify/require"
+
+	"github.com/list-pandora/isi-stasiun-backend/internal/response"
+)
+
+type stubService struct {
+	strukCalled, propertiCalled, geraiCalled, monteCarloCalled bool
+}
+
+func (s *stubService) IngestStrukExtraction(context.Context, StrukExtractionCallback) error {
+	s.strukCalled = true
+	return nil
+}
+func (s *stubService) IngestPropertiExtraction(context.Context, PropertiExtractionCallback) error {
+	s.propertiCalled = true
+	return nil
+}
+func (s *stubService) IngestGeraiClassification(context.Context, GeraiClassificationCallback) error {
+	s.geraiCalled = true
+	return nil
+}
+func (s *stubService) IngestMonteCarloResult(context.Context, MonteCarloResultCallback) error {
+	s.monteCarloCalled = true
+	return nil
+}
+
+func newApp(svc pipelineService) *fiber.App {
+	app := fiber.New()
+	NewHandler(svc).RegisterRoutes(app)
+	return app
+}
+
+func post(t *testing.T, app *fiber.App, path, body string) (int, response.Envelope) {
+	t.Helper()
+	req := httptest.NewRequest("POST", path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := app.Test(req, -1)
+	require.NoError(t, err)
+	var env response.Envelope
+	_ = json.NewDecoder(res.Body).Decode(&env)
+	return res.StatusCode, env
+}
+
+const validStruk = `{
+	"job_id":"job1","source_ref":"r2/key.jpg",
+	"station_id":"11111111-1111-1111-1111-111111111111",
+	"category":"makanan_minuman","final_amount":25000,
+	"payment_method":"qris","transacted_at":"2026-08-29T07:00:00Z",
+	"confidence":0.9,"is_ambiguous":false
+}`
+
+func TestStrukExtractionRejectsUnknownCategory(t *testing.T) {
+	svc := &stubService{}
+	body := strings.Replace(validStruk, `"category":"makanan_minuman"`, `"category":"fashion"`, 1)
+	code, _ := post(t, newApp(svc), "/pipeline/extractions/struk", body)
+
+	require.Equal(t, fiber.StatusBadRequest, code)
+	require.False(t, svc.strukCalled)
+}
+
+func TestStrukExtractionAcceptsValidPayload(t *testing.T) {
+	svc := &stubService{}
+	code, env := post(t, newApp(svc), "/pipeline/extractions/struk", validStruk)
+
+	require.Equal(t, fiber.StatusOK, code)
+	require.True(t, svc.strukCalled)
+	require.Equal(t, "ingested", env.Data.(map[string]any)["status"])
+}
+
+func TestStrukExtractionRejectsZeroAmountWhenNotAmbiguous(t *testing.T) {
+	svc := &stubService{}
+	body := strings.Replace(validStruk, `"final_amount":25000`, `"final_amount":0`, 1)
+	code, _ := post(t, newApp(svc), "/pipeline/extractions/struk", body)
+
+	require.Equal(t, fiber.StatusBadRequest, code)
+	require.False(t, svc.strukCalled)
+}
+
+func TestStrukExtractionAcceptsZeroAmountWhenAmbiguous(t *testing.T) {
+	svc := &stubService{}
+	body := strings.NewReplacer(`"final_amount":25000`, `"final_amount":0`, `"is_ambiguous":false`, `"is_ambiguous":true`).Replace(validStruk)
+	code, _ := post(t, newApp(svc), "/pipeline/extractions/struk", body)
+
+	require.Equal(t, fiber.StatusOK, code)
+	require.True(t, svc.strukCalled)
+}
+
+func TestStrukExtractionRejectsMalformedPhotoURL(t *testing.T) {
+	svc := &stubService{}
+	body := strings.Replace(validStruk, `"is_ambiguous":false`, `"is_ambiguous":false,"photo_url":"not a url"`, 1)
+	code, _ := post(t, newApp(svc), "/pipeline/extractions/struk", body)
+
+	require.Equal(t, fiber.StatusBadRequest, code)
+	require.False(t, svc.strukCalled)
+}
+
+func TestGeraiClassificationRejectsBadVisibility(t *testing.T) {
+	svc := &stubService{}
+	body := `{
+		"job_id":"j","source_ref":"k","station_id":"11111111-1111-1111-1111-111111111111",
+		"gerai_id":"22222222-2222-2222-2222-222222222222",
+		"category":"jasa","visibility":"sideways","confidence":0.5
+	}`
+	code, _ := post(t, newApp(svc), "/pipeline/extractions/gerai", body)
+
+	require.Equal(t, fiber.StatusBadRequest, code)
+	require.False(t, svc.geraiCalled)
+}
+
+func TestMonteCarloRejectsPartialRun(t *testing.T) {
+	svc := &stubService{}
+	body := `{
+		"job_id":"j","station_id":"11111111-1111-1111-1111-111111111111",
+		"time_slot":"morning","potential_low_p10":1,"potential_high_p90":2,
+		"captured_low_p10":0.5,"captured_high_p90":1,"iterations":500
+	}`
+	code, _ := post(t, newApp(svc), "/pipeline/simulations/monte-carlo", body)
+
+	require.Equal(t, fiber.StatusBadRequest, code)
+	require.False(t, svc.monteCarloCalled)
+}
+
+func TestMonteCarloAcceptsFullRun(t *testing.T) {
+	svc := &stubService{}
+	body := `{
+		"job_id":"j","station_id":"11111111-1111-1111-1111-111111111111",
+		"time_slot":"morning","potential_low_p10":1,"potential_high_p90":2,
+		"captured_low_p10":0.5,"captured_high_p90":1,"iterations":10000
+	}`
+	code, _ := post(t, newApp(svc), "/pipeline/simulations/monte-carlo", body)
+
+	require.Equal(t, fiber.StatusOK, code)
+	require.True(t, svc.monteCarloCalled)
+}

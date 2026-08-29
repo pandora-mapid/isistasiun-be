@@ -235,6 +235,7 @@ paths:
       summary: Submit a pedestrian flow observation
       operationId: createFlowObservation
       security: [{ServiceKeyAuth: []}]
+      parameters: [{$ref: "#/components/parameters/IdempotencyKeyHeader"}]
       requestBody:
         required: true
         content:
@@ -280,6 +281,7 @@ paths:
       summary: Submit an entry and purchase conversion observation
       operationId: createEntryConversionObservation
       security: [{ServiceKeyAuth: []}]
+      parameters: [{$ref: "#/components/parameters/IdempotencyKeyHeader"}]
       requestBody:
         required: true
         content:
@@ -489,6 +491,14 @@ components:
       in: path
       required: true
       schema: {type: string, format: uuid}
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: >
+        Opaque client-generated key. Re-submitting with the same key returns
+        the original observation's id instead of inserting a duplicate.
+      schema: {type: string, maxLength: 255}
   responses:
     BadRequest:
       description: Invalid request
@@ -740,7 +750,13 @@ components:
       required: [job_id, source_ref, station_id, category, final_amount, payment_method, transacted_at, confidence, is_ambiguous]
       properties:
         job_id: {type: string}
-        source_ref: {type: string}
+        source_ref: {type: string, description: R2 object key of the source photo}
+        photo_url:
+          type: string
+          format: uri
+          description: >
+            Redacted, publicly servable URL of the source photo. When present the
+            callback also writes a linked transparency_struk evidence card.
         station_id: {type: string, format: uuid}
         category: {$ref: "#/components/schemas/Category"}
         final_amount: {type: number, format: double, minimum: 0}
@@ -753,7 +769,8 @@ components:
       required: [job_id, source_ref, station_id, plot_id, offered_rent, area_sqm, confidence]
       properties:
         job_id: {type: string}
-        source_ref: {type: string}
+        source_ref: {type: string, description: R2 object key of the source photo}
+        photo_url: {type: string, format: uri, description: Redacted public URL; when present writes a linked transparency_properti card}
         station_id: {type: string, format: uuid}
         plot_id: {type: string}
         offered_rent: {type: number, format: double, minimum: 0}
@@ -764,7 +781,8 @@ components:
       required: [job_id, source_ref, station_id, gerai_id, category, visibility, confidence]
       properties:
         job_id: {type: string}
-        source_ref: {type: string}
+        source_ref: {type: string, description: R2 object key of the source photo}
+        photo_url: {type: string, format: uri, description: Redacted public URL; when present writes a linked transparency_gerai card}
         station_id: {type: string, format: uuid}
         gerai_id: {type: string, format: uuid}
         category: {$ref: "#/components/schemas/Category"}
@@ -781,7 +799,7 @@ components:
         potential_high_p90: {type: number, format: double}
         captured_low_p10: {type: number, format: double}
         captured_high_p90: {type: number, format: double}
-        iterations: {type: integer, minimum: 1}
+        iterations: {type: integer, minimum: 10000, description: Full Monte Carlo run per methodology 3.3}
     CreatedID:
       type: object
       required: [id]

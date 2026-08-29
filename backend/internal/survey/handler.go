@@ -1,16 +1,25 @@
 package survey
 
 import (
+	"context"
+
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/list-pandora/isi-stasiun-backend/internal/response"
+	"github.com/list-pandora/isi-stasiun-backend/internal/validate"
 )
 
 type Handler struct {
-	svc *Service
+	svc surveyService
 }
 
-func NewHandler(svc *Service) *Handler {
+type surveyService interface {
+	SubmitFlowObservation(ctx context.Context, req CreateFlowObservationRequest, idempotencyKey string) (string, error)
+	SubmitEntryConversion(ctx context.Context, req CreateEntryConversionRequest, idempotencyKey string) (string, error)
+	ListFlowObservations(ctx context.Context, stationID, entranceID, timeSlot string) ([]FlowObservation, error)
+}
+
+func NewHandler(svc surveyService) *Handler {
 	return &Handler{svc: svc}
 }
 
@@ -28,11 +37,11 @@ func (h *Handler) SubmitFlowObservation(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid request body")
 	}
-	if req.StationID == "" || req.EntranceID == "" || req.SurveyorID == "" {
-		return response.BadRequest(c, "station_id, entrance_id, surveyor_id are required")
+	if msg := validate.Struct(&req); msg != "" {
+		return response.BadRequest(c, msg)
 	}
 
-	id, err := h.svc.SubmitFlowObservation(c.Context(), req)
+	id, err := h.svc.SubmitFlowObservation(c.Context(), req, c.Get("Idempotency-Key"))
 	if err != nil {
 		return response.BadRequest(c, err.Error())
 	}
@@ -44,11 +53,11 @@ func (h *Handler) SubmitEntryConversion(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid request body")
 	}
-	if req.StationID == "" || req.GeraiID == "" || req.SurveyorID == "" {
-		return response.BadRequest(c, "station_id, gerai_id, surveyor_id are required")
+	if msg := validate.Struct(&req); msg != "" {
+		return response.BadRequest(c, msg)
 	}
 
-	id, err := h.svc.SubmitEntryConversion(c.Context(), req)
+	id, err := h.svc.SubmitEntryConversion(c.Context(), req, c.Get("Idempotency-Key"))
 	if err != nil {
 		return response.BadRequest(c, err.Error())
 	}

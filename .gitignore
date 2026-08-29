@@ -16,3 +16,22 @@ __pycache__/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Other env variants. `.env` above does not match `.env.local` / `.env.production`,
+# and `.env.example` must stay tracked — the README tells you to copy it.
+.env.*
+!.env.example
+
+# Go test and build artifacts not covered above
+/backend/bin/
+*.test
+*.out
+
+# Competition documents — internal team planning, not source. Same rule the
+# frontend repo already applies; the README points at these by name.
+Proposal_IsiStasiun.pdf
+ListPandora_1__IsiStasiun_docx.pdf
+BACKEND_TASK_DIVISION_3_PERSON.md
+Brainstorm_Claude_-_MAPID.md
+*.pdf
+*.docx

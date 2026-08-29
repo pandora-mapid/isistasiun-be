@@ -61,7 +61,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.deploy.yml,Makefile,.env.deploy.example,nginx/templates/,scripts/"
+          source: "docker-compose.deploy.yml,Makefile,.env.deploy.example"
           target: /opt/isistasiun
           overwrite: true
 
@@ -90,8 +90,7 @@ jobs:
 
             echo "waiting for health..."
             for i in $(seq 1 20); do
-              if curl -fsS http://localhost:8080/healthz >/dev/null 2>&1 \
-                 || docker compose -f docker-compose.deploy.yml exec -T backend wget -qO- http://localhost:8080/healthz >/dev/null 2>&1; then
+              if $COMPOSE exec -T backend wget -qO- http://localhost:8080/healthz >/dev/null 2>&1; then
                 echo "healthy"; exit 0
               fi
               sleep 3

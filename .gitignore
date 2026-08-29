@@ -23,9 +23,6 @@ Thumbs.db
 !.env.example
 !.env.deploy.example
 
-# Let's Encrypt state, created on the server by the certbot container.
-nginx/certbot/
-
 # Go test and build artifacts not covered above
 /backend/bin/
 *.test

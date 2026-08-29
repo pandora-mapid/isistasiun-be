@@ -1,11 +1,15 @@
 # Server stack (dev or prod box). Self-contained — not an overlay on
-# docker-compose.yml. All per-environment values come from .env on the box,
-# which the deploy workflow regenerates from GitHub Secrets on every run.
+# docker-compose.yml. Values come from .env on the box, which you create once
+# from .env.deploy.example (the deploy workflow never touches it).
 #
 #   docker compose -f docker-compose.deploy.yml --env-file .env up -d
 #
-# The pipeline container is behind the "batch" profile: `up` never starts it,
-# run a job with
+# TLS + routing is handled by the box's existing shared reverse proxy
+# (trackster-nginx-1 on the `shared-web-net` network). This stack only exposes
+# `backend` on that network as ${COMPOSE_PROJECT_NAME}-backend-1:8080 — add a
+# server block there for SERVER_NAME pointing at that upstream.
+#
+# The pipeline container is behind the "batch" profile: `up` never starts it.
 #   docker compose -f docker-compose.deploy.yml --env-file .env \
 #     --profile batch run --rm pipeline python main.py <job> ...
 
@@ -13,6 +17,11 @@ name: ${COMPOSE_PROJECT_NAME:-isistasiun}
 
 x-images:
   api: &api_image ghcr.io/pandora-mapid/isistasiun-be/api:${IMAGE_TAG:-dev}
+
+networks:
+  internal:
+  shared-web-net:
+    external: true
 
 services:
   postgres:
@@ -25,6 +34,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks: [internal]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -40,6 +50,7 @@ services:
     restart: "no"
     env_file: .env
     entrypoint: ["sh", "-c", "migrate -path /app/migrations -database \"$$DATABASE_URL\" up"]
+    networks: [internal]
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,6 +66,9 @@ services:
       DATABASE_URL: ${DATABASE_URL}
     expose:
       - "8080"
+    networks:
+      - internal
+      - shared-web-net
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,34 +81,6 @@ services:
       retries: 5
     logging: *logging
 
-  nginx:
-    image: nginx:1.27-alpine
-    restart: always
-    environment:
-      SERVER_NAME: ${SERVER_NAME:?set SERVER_NAME in .env}
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/templates:/etc/nginx/templates:ro
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/certbot/www:/var/www/certbot
-    depends_on:
-      - backend
-    # reload every 6h so a renewed certificate is picked up without a restart
-    command: >
-      sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"
-    logging: *logging
-
-  certbot:
-    image: certbot/certbot:latest
-    restart: unless-stopped
-    volumes:
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/certbot/www:/var/www/certbot
-    entrypoint: >
-      sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
-
   pipeline:
     image: ghcr.io/pandora-mapid/isistasiun-be/pipeline:${IMAGE_TAG:-dev}
     pull_policy: always
@@ -102,6 +88,7 @@ services:
     restart: "no"
     env_file: .env
     command: ["python", "--version"]
+    networks: [internal]
     depends_on:
       postgres:
         condition: service_healthy

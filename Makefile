@@ -1,5 +1,5 @@
 .PHONY: up down logs be-run be-test be-migrate-up be-migrate-down be-operator \
-        pipeline-shell fmt deploy-pull deploy-logs pipeline-job tls-init
+        pipeline-shell fmt deploy-pull deploy-logs pipeline-job
 
 # ---- local dev ----
 up:
@@ -49,6 +49,3 @@ deploy-logs:
 #   make pipeline-job ARGS="extract-struk --station-id <uuid> --job-id j1 --images-dir /app/data/struk"
 pipeline-job:
 	$(DEPLOY_COMPOSE) --profile batch run --rm pipeline python main.py $(ARGS)
-
-tls-init:
-	./scripts/init-letsencrypt.sh

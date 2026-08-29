@@ -107,17 +107,24 @@ Skema ada di `backend/migrations/*.sql` (format `golang-migrate`).
 CI (`.github/workflows/ci.yml`) jalan tiap PR/push: `go vet` + `go test` +
 `pytest` + build image. Deploy dev (`deploy-dev.yml`) jalan tiap push ke `dev`:
 build & push image ke `ghcr.io/pandora-mapid/isistasiun-be/{api,pipeline}` →
-SSH ke VPS → `docker compose pull && up -d` → cek `/healthz`.
+scp stack file ke VPS → SSH → `docker compose pull && up -d` → cek `/healthz`.
+
+TLS + routing di-handle **reverse proxy bersama** yang sudah ada di box
+(`trackster-nginx-1` di network `shared-web-net`). Stack ini cuma expose
+`backend` di network itu sebagai `${COMPOSE_PROJECT_NAME}-backend-1:8080`.
+Postgres pakai container sendiri (butuh PostGIS), internal only.
 
 **Sekali di server** (`/opt/isistasiun`, setelah deploy pertama nge-scp file ke sini):
 
 ```bash
-cp .env.deploy.example .env      # isi semua CHANGE_ME (DATABASE_URL & POSTGRES_PASSWORD harus konsisten)
-# pastikan DNS SERVER_NAME sudah mengarah ke box ini
-./scripts/init-letsencrypt.sh    # dummy cert -> start stack -> real cert -> up -d
+cp .env.deploy.example .env      # isi semua CHANGE_ME (DATABASE_URL & POSTGRES_PASSWORD konsisten)
 ```
 
-Deploy berikutnya cukup `git push` ke `dev` — workflow yang `pull && up -d`.
+Lalu di config `trackster-nginx-1`, tambah server block:
+`api.dev.isistasiun.trackster.cloud` → `http://isistasiun-dev-backend-1:8080`,
+issue cert lewat certbot yang sama.
+
+Deploy berikutnya cukup `git push` ke `dev`.
 
 - `.env` di server **tidak** disentuh CI — itu satu-satunya sumber kebenaran.
   `IMAGE_TAG` di-overwrite tiap deploy ke tag per-commit.
@@ -125,8 +132,7 @@ Deploy berikutnya cukup `git push` ke `dev` — workflow yang `pull && up -d`.
   `make pipeline-job ARGS="extract-struk --station-id <uuid> --job-id j1 --images-dir /app/data/struk"`
 - GitHub Secrets yang dipakai: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (deploy key
   khusus, bukan key pribadi), `GHCR_PAT` (PAT classic, scope `write:packages` +
-  `read:packages` — dipakai buat push image & buat VPS pull image privat).
-- VPS wajib: Docker + compose plugin, swap (RAM 2GB), port 80/443 terbuka.
+  `read:packages`).
 
 ## Catatan Arsitektur
 

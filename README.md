@@ -7,8 +7,8 @@ terpisah.
 
 Mengukur *spending gap* per stasiun: potensi belanja komuter (`F × E × C × V`
 per kategori) vs belanja yang tertangkap gerai in-station, disimulasikan
-Monte Carlo (P10-P90). Lihat `Brainstorm_Claude_-_MAPID.md` dan
-`ListPandora_1__IsiStasiun_docx.pdf` untuk detail metodologi lengkap.
+Monte Carlo (P10-P90). Metodologi lengkap + spec: `../Context/` (mulai dari
+`../Context/INDEX.md`). Panduan agent: [`CLAUDE.md`](CLAUDE.md).
 
 ## Tech Stack
 
@@ -33,9 +33,9 @@ isi-stasiun/
 └── docker-compose.prod.yml
 ```
 
-Pembagian ownership: lihat `BACKEND_TASK_DIVISION_3_PERSON.md`
-(Priyapta: station/analytics/confidence/copilot-routing · Arzaka: survey +
-pipeline callback · Firaz: transparency/auth/premium/copilot-logic).
+Pembagian ownership (Priyapta: station/analytics/confidence/copilot-routing ·
+Arzaka: survey + pipeline callback · Firaz: transparency/auth/premium/copilot-logic)
+— detail di `../Context/02-BACKEND-SPEC.md` §2.
 
 ## Quick Start
 
@@ -43,8 +43,15 @@ pipeline callback · Firaz: transparency/auth/premium/copilot-logic).
 cp .env.example .env        # isi API key MAPID, Gemini, JWT secret, dll
 make up                      # docker compose up -d --build
 make be-migrate-up           # jalankan migration (butuh golang-migrate, lihat catatan di bawah)
+make be-seed                  # (opsional) demo data station-summary — 2 simpul, buat coba endpoint
 make be-test                 # go test ./... — tier akses + klasifikasi copilot
 ```
+
+`make be-seed` mengisi `stations` + `station_summary` untuk Manggarai & Sudirman
+supaya `GET /api/v1/analytics/station-summary` mengembalikan data di stack yang
+masih kosong (`backend/seed/demo_station_summary.sql`, `make be-seed-down` untuk
+menghapusnya). Dev/demo saja — data sungguhan datang dari pipeline Monte Carlo
+per simpul lewat `/pipeline/simulations/monte-carlo`.
 
 Buat akun operator untuk tier premium (password dibaca dari env, bukan flag,
 supaya tidak masuk shell history):

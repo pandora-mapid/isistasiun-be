@@ -1,5 +1,5 @@
-.PHONY: help up down logs be-run be-test be-migrate-up be-migrate-down be-operator \
-        pipeline-shell fmt deploy-pull deploy-logs pipeline-job
+.PHONY: help up down logs be-run be-test be-migrate-up be-migrate-down be-seed be-seed-down \
+        be-operator pipeline-shell fmt deploy-pull deploy-logs pipeline-job
 
 .DEFAULT_GOAL := help
 
@@ -33,6 +33,12 @@ be-migrate-up: ## Jalankan semua migration (lokal)
 
 be-migrate-down: ## Rollback 1 migration (lokal)
 	docker compose --profile tools run --rm migrate 'migrate -path /migrations -database "$$DATABASE_URL" down 1'
+
+be-seed: ## Demo data untuk endpoint station-summary (dev/demo saja)
+	docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' < backend/seed/demo_station_summary.sql
+
+be-seed-down: ## Hapus demo data station-summary
+	docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' < backend/seed/demo_station_summary_down.sql
 
 pipeline-shell: ## Shell ke container pipeline (lokal)
 	docker compose exec pipeline bash

@@ -92,6 +92,8 @@ func TestPublicRoutesNeedNoCredentials(t *testing.T) {
 		{http.MethodGet, "/api/v1/analytics/category-gap"},
 		{http.MethodGet, "/api/v1/analytics/rent-flow-index"},
 		{http.MethodGet, "/api/v1/analytics/event-potential"},
+		{http.MethodGet, "/api/v1/analytics/station-summary"},
+		{http.MethodGet, "/api/v1/analytics/station-summary/abc"},
 		{http.MethodGet, "/api/v1/confidence-layer"},
 		{http.MethodGet, "/api/v1/transparency/struk/abc"},
 		{http.MethodGet, "/api/v1/transparency/gerai/abc"},

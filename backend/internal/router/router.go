@@ -15,6 +15,7 @@ import (
 	"github.com/list-pandora/isi-stasiun-backend/internal/premium"
 	"github.com/list-pandora/isi-stasiun-backend/internal/response"
 	"github.com/list-pandora/isi-stasiun-backend/internal/station"
+	"github.com/list-pandora/isi-stasiun-backend/internal/summary"
 	"github.com/list-pandora/isi-stasiun-backend/internal/survey"
 	"github.com/list-pandora/isi-stasiun-backend/internal/transparency"
 )
@@ -57,6 +58,10 @@ func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 
 	confidenceHandler := confidence.NewHandler(confidence.NewService(confidence.NewRepository(db)))
 	confidenceHandler.RegisterRoutes(api)
+
+	// ---- Arzaka: station-level rollup for the Compare View (public tier) ----
+	summaryHandler := summary.NewHandler(summary.NewService(summary.NewRepository(db)))
+	summaryHandler.RegisterRoutes(api)
 
 	// ---- Priyapta: AI copilot routing (rate-limited, public) ----
 	copilotClient := copilot.NewClient(cfg.AIServiceURL, cfg.AIServiceTimeoutSeconds)

@@ -182,6 +182,31 @@ paths:
                         items: {$ref: "#/components/schemas/EventPotential"}
         "400": {$ref: "#/components/responses/BadRequest"}
         "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/analytics/station-summary:
+    get:
+      tags: [Analytics]
+      summary: Station-level rollup for the Compare View (2 simpul, free tier)
+      description: >
+        One row per station: a P10/P50/P90 range for potensi/tertangkap/gap, the
+        capture rate, the F/E/C/V of the busiest observation point, and the
+        category composition. `basis` says whether the range came from a real
+        station-scoped Monte Carlo run (`monte-carlo-simpul`) or a stopgap
+        aggregate of point figures (`agregat-titik`).
+      operationId: listStationSummary
+      responses:
+        "200": {$ref: "#/components/responses/StationSummaryList"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/analytics/station-summary/{station_id}:
+    get:
+      tags: [Analytics]
+      summary: Station-level rollup for one station
+      operationId: getStationSummary
+      parameters:
+        - $ref: "#/components/parameters/StationIDNamedPath"
+      responses:
+        "200": {$ref: "#/components/responses/StationSummaryList"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /api/v1/confidence-layer:
     get:
       tags: [Confidence]
@@ -554,6 +579,48 @@ components:
                   data:
                     type: array
                     items: {$ref: "#/components/schemas/SpendingGap"}
+    StationSummaryList:
+      description: Station-level rollup rows, biggest daily gap first
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/SuccessEnvelope"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: "#/components/schemas/StationSummary"}
+          example:
+            success: true
+            message: Berhasil mengambil ringkasan simpul
+            data:
+              - station_id: a0000000-0000-4000-8000-000000000001
+                station_name: Manggarai
+                typology: mixed
+                day_type: weekday
+                pintu_dicacah: 3
+                pintu_ditahan: 0
+                potensi: {p10: 7200000, p50: 8200000, p90: 10500000}
+                tertangkap: {p10: 2200000, p50: 2500000, p90: 3200000}
+                gap: {p10: 5000000, p50: 5700000, p90: 7300000}
+                capture_rate: 0.3049
+                confidence: {min: 0.77, max: 0.87}
+                struk_terbaca: 713
+                peak:
+                  point_label: Koridor Transit Utara
+                  time_slot: morning
+                  f: 1574
+                  e: 0.07
+                  c: 0.66
+                  v: 30000
+                  gap: {p10: 860000, p50: 1100000, p90: 1520000}
+                composition:
+                  - {category: makanan_minuman, demand_share: 0.4666, gerai_count: 3, is_missing: false}
+                  - {category: ritel_kemasan, demand_share: 0.1837, gerai_count: 2, is_missing: true}
+                  - {category: apotek_kesehatan, demand_share: 0.1061, gerai_count: 0, is_missing: true}
+                basis: monte-carlo-simpul
+                computed_at: "2026-08-20T10:00:00Z"
     CreatedID:
       description: Record created
       content:
@@ -657,6 +724,59 @@ components:
         gap_low_p10: {type: number, format: double}
         gap_high_p90: {type: number, format: double}
         time_slot: {$ref: "#/components/schemas/TimeSlot"}
+        computed_at: {type: string, format: date-time}
+    MoneyRange:
+      type: object
+      required: [p10, p50, p90]
+      properties:
+        p10: {type: number, format: double}
+        p50: {type: number, format: double}
+        p90: {type: number, format: double}
+    StationSummary:
+      type: object
+      required: [station_id, station_name, typology, day_type, pintu_dicacah, pintu_ditahan, potensi, tertangkap, gap, capture_rate, confidence, struk_terbaca, peak, composition, basis, computed_at]
+      properties:
+        station_id: {type: string, format: uuid}
+        station_name: {type: string}
+        typology: {$ref: "#/components/schemas/AreaType"}
+        day_type: {type: string, enum: [weekday, weekend]}
+        pintu_dicacah: {type: integer, minimum: 0}
+        pintu_ditahan: {type: integer, minimum: 0}
+        potensi: {$ref: "#/components/schemas/MoneyRange"}
+        tertangkap: {$ref: "#/components/schemas/MoneyRange"}
+        gap: {$ref: "#/components/schemas/MoneyRange"}
+        capture_rate: {type: number, format: double, nullable: true, description: captured_p50 / potential_p50}
+        confidence:
+          type: object
+          nullable: true
+          required: [min, max]
+          properties:
+            min: {type: number, format: double}
+            max: {type: number, format: double}
+        struk_terbaca: {type: integer, minimum: 0}
+        peak:
+          type: object
+          nullable: true
+          required: [point_label, time_slot, f, e, c, v, gap]
+          properties:
+            point_label: {type: string}
+            time_slot: {$ref: "#/components/schemas/TimeSlot"}
+            f: {type: number, format: double}
+            e: {type: number, format: double}
+            c: {type: number, format: double}
+            v: {type: number, format: double}
+            gap: {$ref: "#/components/schemas/MoneyRange"}
+        composition:
+          type: array
+          items:
+            type: object
+            required: [category, demand_share, gerai_count, is_missing]
+            properties:
+              category: {$ref: "#/components/schemas/Category"}
+              demand_share: {type: number, format: double}
+              gerai_count: {type: integer, minimum: 0}
+              is_missing: {type: boolean}
+        basis: {type: string, enum: [monte-carlo-simpul, agregat-titik]}
         computed_at: {type: string, format: date-time}
     CategoryGap:
       type: object

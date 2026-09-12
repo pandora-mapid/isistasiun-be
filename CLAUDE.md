@@ -49,6 +49,15 @@ CI (`.github/workflows/ci.yml`): `go vet` + `go test` + `pytest` + image build, 
   `Group("")` == `Use("/api/v1", …)` — it applies to every route registered after
   it. That once made transparency/auth/premium all demand `X-Service-Key` and 401.
   `internal/router/router_test.go` locks the tier of each route.
+- **`/analytics/station-summary*` is response-cached** via
+  `internal/middleware.ResponseCache` (Fiber's built-in in-memory `cache`
+  middleware, TTL from `SUMMARY_CACHE_TTL_SECONDS`, default 300s), mounted the
+  same `Use("/analytics/station-summary", …)` way as the guards above.
+  Deliberately scoped to Arzaka's own route, not Priyapta's `internal/analytics`
+  endpoints — the spec (`../Context/02-BACKEND-SPEC.md §3.2`) recommends caching
+  all analytics reads, but adding it repo-wide would mean editing another
+  owner's files. Extend the same middleware per-owner rather than building a
+  second cache.
 - **`/copilot/query` is split by owner:** routing + rate limit in
   `internal/copilot/handler.go` (Priyapta); intent parsing + AI logic in
   `internal/copilot/intent.go` + `service.go` (Firaz). Each query is classified
@@ -56,6 +65,13 @@ CI (`.github/workflows/ci.yml`): `go vet` + `go test` + `pytest` + image build, 
   if `AI_SERVICE_URL` answers — the endpoint returns correct filters either way.
 - **Idempotency on all `/pipeline/*` callbacks** — they can be retried.
 - Pipeline runs as one-shot jobs (cron/manual), not a long-running server.
+- **`pipeline/shared/gemini.py`'s `extract_json` retries transient request
+  failures** (rate limits, timeouts, network blips) with exponential backoff
+  before raising `GeminiError` — a one-shot cron job has no supervisor to
+  retry it, so a single flaky Gemini call used to be able to sink the whole
+  batch run. Only the request is retried; a response that comes back but
+  isn't valid JSON is a content problem (deterministic at `temperature: 0`),
+  not a transport one, and is surfaced immediately instead.
 - Operator accounts are created via `cmd/createoperator` with the password read from
   env, not a flag — no seed migration (would commit a password hash).
 

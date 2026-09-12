@@ -17,14 +17,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+
+      # GITHUB_TOKEN bawaan, bukan PAT. GHCR_PAT kedaluwarsa dalam hitungan
+      # hari setelah dipasang dan setiap deploy sejak 29 Agustus 2026 mati di
+      # langkah ini dengan `denied: denied` — tanpa ada yang menyadarinya,
+      # karena yang gagal cuma job deploy sementara CI tetap hijau. Token
+      # bawaan tidak punya masa berlaku dan tidak perlu dirotasi siapa pun.
+      # isistasiun-fe sudah memakai pola yang sama.
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_PAT }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build & push api
         uses: docker/build-push-action@v6
         with:
@@ -52,6 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
 
@@ -101,5 +110,8 @@ jobs:
             exit 1
         env:
           GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GHCR_PAT }}
+          # Berlaku hanya selama run ini berjalan, dan skrip di atas langsung
+          # `docker logout` setelah pull — jadi tidak ada kredensial yang
+          # tertinggal di server, tidak seperti PAT yang umurnya berbulan-bulan.
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMAGE_TAG: dev-${{ github.sha }}

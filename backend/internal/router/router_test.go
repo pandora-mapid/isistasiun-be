@@ -39,6 +39,7 @@ func newTestApp() *fiber.App {
 		JWTSecret:             testJWTSecret,
 		JWTAccessTTLMins:      15,
 		JWTRefreshTTLHours:    168,
+		AuthRateLimitRPM:      1000,
 		PipelineServiceAPIKey: testSvcKey,
 		AIServiceURL:          "http://127.0.0.1:1", // guaranteed refused: exercises the fallback path
 		RateLimitRPM:          1000,                 // high enough not to interfere
@@ -101,7 +102,6 @@ func TestPublicRoutesNeedNoCredentials(t *testing.T) {
 		{http.MethodGet, "/api/v1/transparency/properti/abc"},
 		{http.MethodGet, "/api/v1/transparency/station/abc/records"},
 		{http.MethodPost, "/api/v1/auth/login"},
-		{http.MethodPost, "/api/v1/auth/refresh"},
 		{http.MethodPost, "/api/v1/copilot/query"},
 	} {
 		got := do(t, app, tc.method, tc.path, nil)
@@ -109,6 +109,17 @@ func TestPublicRoutesNeedNoCredentials(t *testing.T) {
 			t.Errorf("%s %s: public route rejected with %d — a guard is leaking onto it",
 				tc.method, tc.path, got)
 		}
+	}
+}
+
+func TestAuthSessionRoutesUseRefreshCookie(t *testing.T) {
+	app := newTestApp()
+
+	if got := do(t, app, http.MethodPost, "/api/v1/auth/refresh", nil); got != http.StatusUnauthorized {
+		t.Errorf("refresh without cookie: got %d, want 401", got)
+	}
+	if got := do(t, app, http.MethodPost, "/api/v1/auth/logout", nil); got != http.StatusOK {
+		t.Errorf("idempotent logout without cookie: got %d, want 200", got)
 	}
 }
 
@@ -158,6 +169,7 @@ func TestPremiumRequiresOperatorToken(t *testing.T) {
 		{"malformed header", map[string]string{"Authorization": "Token abc"}, http.StatusUnauthorized},
 		{"wrong secret", map[string]string{"Authorization": "Bearer " + "not.a.jwt"}, http.StatusUnauthorized},
 		{"expired token", map[string]string{"Authorization": "Bearer " + token(t, "operator", "access", -time.Minute)}, http.StatusUnauthorized},
+		{"refresh token", map[string]string{"Authorization": "Bearer " + token(t, "operator", "refresh", time.Hour)}, http.StatusUnauthorized},
 		{"authenticated but wrong role", map[string]string{"Authorization": "Bearer " + token(t, "surveyor", "access", time.Hour)}, http.StatusForbidden},
 	}
 

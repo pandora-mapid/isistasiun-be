@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -17,6 +18,8 @@ type Config struct {
 	JWTSecret          string
 	JWTAccessTTLMins   int
 	JWTRefreshTTLHours int
+	AuthRateLimitRPM   int
+	AuthCookieDomain   string
 
 	PipelineServiceAPIKey string
 
@@ -42,6 +45,8 @@ func Load() *Config {
 		JWTSecret:          getEnv("JWT_SECRET", ""),
 		JWTAccessTTLMins:   getEnvInt("JWT_ACCESS_TTL_MINUTES", 15),
 		JWTRefreshTTLHours: getEnvInt("JWT_REFRESH_TTL_HOURS", 168),
+		AuthRateLimitRPM:   getEnvInt("AUTH_RATE_LIMIT_RPM", 10),
+		AuthCookieDomain:   getEnv("AUTH_COOKIE_DOMAIN", ""),
 
 		PipelineServiceAPIKey: getEnv("PIPELINE_SERVICE_API_KEY", ""),
 
@@ -53,6 +58,27 @@ func Load() *Config {
 
 		CORSAllowedOrigins: getEnvList("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
 	}
+}
+
+// Validate rejects configurations that would make authentication appear to
+// work while using an empty/weak signing key or nonsensical lifetimes.
+func (c *Config) Validate() error {
+	if strings.TrimSpace(c.DatabaseURL) == "" {
+		return fmt.Errorf("DATABASE_URL is required")
+	}
+	if len(c.JWTSecret) < 32 {
+		return fmt.Errorf("JWT_SECRET must be at least 32 characters")
+	}
+	if c.JWTAccessTTLMins <= 0 {
+		return fmt.Errorf("JWT_ACCESS_TTL_MINUTES must be greater than zero")
+	}
+	if c.JWTRefreshTTLHours <= 0 {
+		return fmt.Errorf("JWT_REFRESH_TTL_HOURS must be greater than zero")
+	}
+	if c.AuthRateLimitRPM <= 0 {
+		return fmt.Errorf("AUTH_RATE_LIMIT_RPM must be greater than zero")
+	}
+	return nil
 }
 
 func getEnvList(key, fallback string) []string {

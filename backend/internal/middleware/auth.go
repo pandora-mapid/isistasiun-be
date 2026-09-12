@@ -24,11 +24,11 @@ func RequireAuth(secret string) fiber.Handler {
 		tokenStr := strings.TrimPrefix(header, "Bearer ")
 
 		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			if t.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 				return nil, fiber.ErrUnauthorized
 			}
 			return []byte(secret), nil
-		})
+		}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 		if err != nil || !token.Valid {
 			return response.Unauthorized(c, "invalid or expired token")
 		}
@@ -37,9 +37,17 @@ func RequireAuth(secret string) fiber.Handler {
 		if !ok {
 			return response.Unauthorized(c, "invalid token claims")
 		}
+		if claims["typ"] != "access" {
+			return response.Unauthorized(c, "access token required")
+		}
+		userID, userOK := claims["sub"].(string)
+		role, roleOK := claims["role"].(string)
+		if !userOK || userID == "" || !roleOK || role == "" {
+			return response.Unauthorized(c, "invalid token claims")
+		}
 
-		c.Locals(CtxUserIDKey, claims["sub"])
-		c.Locals(CtxRoleKey, claims["role"])
+		c.Locals(CtxUserIDKey, userID)
+		c.Locals(CtxRoleKey, role)
 		return c.Next()
 	}
 }

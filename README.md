@@ -63,6 +63,12 @@ OPERATOR_PASSWORD=... go run ./cmd/createoperator -email ops@kai.id -role operat
 Sengaja tidak ada seed migration untuk ini — migration akan meng-commit hash
 password ke repo dan menyamakan kredensial di semua checkout.
 
+Autentikasi browser memakai access JWT berumur pendek di response login dan
+refresh JWT dalam cookie `HttpOnly`. `POST /api/v1/auth/refresh` merotasi cookie;
+`POST /api/v1/auth/logout` mencabut seluruh keluarga sesi. Jalankan migration
+terbaru sebelum mengaktifkan login karena sesi refresh disimpan di tabel
+`operator_refresh_sessions`.
+
 - Backend API: http://localhost:8080/api/v1 (health check: `/healthz`)
 - Swagger UI (development only): http://localhost:8080/docs
 - OpenAPI spec (development only): http://localhost:8080/docs/openapi.yaml

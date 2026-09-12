@@ -1,6 +1,8 @@
 package router
 
 import (
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -44,6 +46,7 @@ func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 	api.Use("/pipeline", serviceKey) // Arzaka: batch pipeline callbacks
 
 	api.Use("/copilot", middleware.RateLimit(cfg.RateLimitRPM)) // most abuse-prone: every call proxies a paid LLM
+	api.Use("/auth/login", middleware.RateLimit(cfg.AuthRateLimitRPM))
 
 	api.Use("/premium",
 		middleware.RequireAuth(cfg.JWTSecret),
@@ -84,7 +87,14 @@ func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 	transparencyHandler.RegisterRoutes(api)
 
 	// ---- Firaz: auth ----
-	authHandler := auth.NewHandler(auth.NewService(auth.NewRepository(db), cfg.JWTSecret, cfg.JWTAccessTTLMins, cfg.JWTRefreshTTLHours))
+	authHandler := auth.NewHandler(
+		auth.NewService(auth.NewRepository(db), cfg.JWTSecret, cfg.JWTAccessTTLMins, cfg.JWTRefreshTTLHours),
+		auth.CookieConfig{
+			Secure: cfg.IsProduction(),
+			Domain: cfg.AuthCookieDomain,
+			TTL:    time.Duration(cfg.JWTRefreshTTLHours) * time.Hour,
+		},
+	)
 	authHandler.RegisterRoutes(api)
 
 	// ---- Firaz: premium (JWT + operator role required, see Use above) ----

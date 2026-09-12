@@ -26,6 +26,8 @@ type Config struct {
 	RateLimitRPM   int
 	TrustedProxies []string
 
+	SummaryCacheTTLSeconds int
+
 	CORSAllowedOrigins []string
 }
 
@@ -50,6 +52,11 @@ func Load() *Config {
 
 		RateLimitRPM:   getEnvInt("RATE_LIMIT_RPM", 60),
 		TrustedProxies: getEnvList("TRUSTED_PROXIES", ""),
+
+		// Station-summary rows only change when the batch pipeline re-runs
+		// (../../../Context/02-BACKEND-SPEC.md §3.2), so a short shared TTL
+		// cache is safe and cuts repeat DB reads from the Compare View.
+		SummaryCacheTTLSeconds: getEnvInt("SUMMARY_CACHE_TTL_SECONDS", 300),
 
 		CORSAllowedOrigins: getEnvList("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
 	}

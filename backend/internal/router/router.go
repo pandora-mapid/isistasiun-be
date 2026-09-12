@@ -64,6 +64,10 @@ func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 	confidenceHandler.RegisterRoutes(api)
 
 	// ---- Arzaka: station-level rollup for the Compare View (public tier) ----
+	// TTL-cached: rows only change when the batch pipeline re-runs, and the
+	// FE reads the same two stations repeatedly (map dialog + Insight +
+	// Beranda), so this is a pure win with no numbers changed.
+	api.Use("/analytics/station-summary", middleware.ResponseCache(cfg.SummaryCacheTTLSeconds))
 	summaryHandler := summary.NewHandler(summary.NewService(summary.NewRepository(db)))
 	summaryHandler.RegisterRoutes(api)
 

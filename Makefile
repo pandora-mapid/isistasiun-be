@@ -1,4 +1,4 @@
-.PHONY: help up down logs be-run be-test be-migrate-up be-migrate-down be-seed be-seed-down \
+.PHONY: help up down logs be-run be-test be-migrate-up be-migrate-down be-seed be-seed-down be-seed-rental be-seed-rental-down be-sync-rental \
         be-operator pipeline-shell fmt deploy-pull deploy-logs pipeline-job
 
 .DEFAULT_GOAL := help
@@ -39,6 +39,15 @@ be-seed: ## Demo data untuk endpoint station-summary (dev/demo saja)
 
 be-seed-down: ## Hapus demo data station-summary
 	docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' < backend/seed/demo_station_summary_down.sql
+
+be-seed-rental: ## Demo data untuk layer aset sewa (dev/demo saja)
+	docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' < backend/seed/demo_rental_assets.sql
+
+be-seed-rental-down: ## Hapus demo data layer aset sewa
+	docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' < backend/seed/demo_rental_assets_down.sql
+
+be-sync-rental: ## Sinkronkan snapshot Manggarai dari Space KAI
+	cd backend && go run ./cmd/sync_rental_assets
 
 pipeline-shell: ## Shell ke container pipeline (lokal)
 	docker compose exec pipeline bash

@@ -160,6 +160,35 @@ paths:
                         items: {$ref: "#/components/schemas/RentFlowIndex"}
         "400": {$ref: "#/components/responses/BadRequest"}
         "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/analytics/rental-assets:
+    get:
+      tags: [Analytics]
+      summary: List source-backed rental assets
+      operationId: listRentalAssets
+      parameters:
+        - $ref: "#/components/parameters/StationIDQuery"
+        - name: station_code
+          in: query
+          schema: {type: string, example: MRI}
+          description: Station code filter, useful when the caller has not mapped UUIDs yet
+        - name: status
+          in: query
+          schema: {type: string, enum: [occupied, available, needs_verification]}
+      responses:
+        "200":
+          description: Rental asset list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: {$ref: "#/components/schemas/RentalAsset"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /api/v1/analytics/event-potential:
     get:
       tags: [Analytics]
@@ -804,6 +833,29 @@ components:
         zone_id: {type: string}
         activation_score: {type: number, format: double}
         recommended_slot: {type: string, nullable: true}
+    RentalAsset:
+      type: object
+      required: [id, station_id, station_name, station_code, source_id, data_source, location_name, plot_name, latitude, longitude, rented, availability_status, commercial_value_visible]
+      properties:
+        id: {type: string, format: uuid}
+        station_id: {type: string, format: uuid}
+        station_name: {type: string}
+        station_code: {type: string}
+        source_id: {type: string}
+        data_source: {type: string, enum: [space_kai, field_survey]}
+        location_name: {type: string}
+        plot_name: {type: string}
+        area_name: {type: string, nullable: true}
+        latitude: {type: number, format: double}
+        longitude: {type: number, format: double}
+        land_area: {type: number, format: double, nullable: true}
+        building_area: {type: number, format: double, nullable: true}
+        rented: {type: boolean}
+        availability_status: {type: string, enum: [occupied, available, needs_verification]}
+        commercial_value: {type: number, format: double, nullable: true}
+        commercial_value_visible: {type: boolean}
+        source_updated_at: {type: string, format: date-time, nullable: true}
+        note: {type: string, nullable: true}
     ConfidenceLayerEntry:
       type: object
       required: [station_id, zone_id, sample_count, is_thin_sample, confidence_score]

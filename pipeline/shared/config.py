@@ -25,3 +25,12 @@ class Settings:
 
 
 settings = Settings()
+
+
+# Konversi beli (C) di F x E x C x V. Keputusan produk, final: 95% pengunjung
+# yang masuk ke gerai menyelesaikan pembelian. Bukan env var dan bukan
+# distribusi yang ditarik dari `entry_conversion_observations` — dikunci di
+# sini supaya satu angka yang sama dipakai pipeline, fixture AI, dan panel
+# transparansi. `completed_purchase_count` tetap dikumpulkan di lapangan dan
+# tetap tersimpan, tapi sebagai pembanding/QA, bukan sumber distribusi.
+PURCHASE_CONVERSION = 0.95

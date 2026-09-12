@@ -13,6 +13,7 @@ import (
 	"github.com/list-pandora/isi-stasiun-backend/internal/middleware"
 	"github.com/list-pandora/isi-stasiun-backend/internal/pipeline"
 	"github.com/list-pandora/isi-stasiun-backend/internal/premium"
+	"github.com/list-pandora/isi-stasiun-backend/internal/rental"
 	"github.com/list-pandora/isi-stasiun-backend/internal/response"
 	"github.com/list-pandora/isi-stasiun-backend/internal/station"
 	"github.com/list-pandora/isi-stasiun-backend/internal/summary"
@@ -55,6 +56,9 @@ func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 
 	analyticsHandler := analytics.NewHandler(analytics.NewService(analytics.NewRepository(db)))
 	analyticsHandler.RegisterRoutes(api)
+
+	rentalHandler := rental.NewHandler(rental.NewService(rental.NewRepository(db)))
+	rentalHandler.RegisterRoutes(api)
 
 	confidenceHandler := confidence.NewHandler(confidence.NewService(confidence.NewRepository(db)))
 	confidenceHandler.RegisterRoutes(api)

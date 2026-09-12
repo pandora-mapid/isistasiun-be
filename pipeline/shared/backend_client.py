@@ -33,3 +33,11 @@ def push_gerai_classification(payload: dict) -> dict:
 
 def push_monte_carlo_result(payload: dict) -> dict:
     return _post("/pipeline/simulations/monte-carlo", payload)
+
+
+def push_station_summary(payload: dict) -> dict:
+    """Whole-station rollup for the Compare View. Separate endpoint from
+    push_monte_carlo_result on purpose: that one is per (station, time_slot)
+    and carries only P10/P90, this one is station-wide with P50, a simulated
+    gap, peak and composition."""
+    return _post("/pipeline/simulations/station-summary", payload)

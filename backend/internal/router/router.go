@@ -68,7 +68,8 @@ func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 	// FE reads the same two stations repeatedly (map dialog + Insight +
 	// Beranda), so this is a pure win with no numbers changed.
 	api.Use("/analytics/station-summary", middleware.ResponseCache(cfg.SummaryCacheTTLSeconds))
-	summaryHandler := summary.NewHandler(summary.NewService(summary.NewRepository(db)))
+	summaryRepo := summary.NewRepository(db)
+	summaryHandler := summary.NewHandler(summary.NewService(summaryRepo))
 	summaryHandler.RegisterRoutes(api)
 
 	// ---- Priyapta: AI copilot routing (rate-limited, public) ----
@@ -80,7 +81,9 @@ func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 	surveyHandler := survey.NewHandler(survey.NewService(survey.NewRepository(db)))
 	surveyHandler.RegisterRoutes(api)
 
-	pipelineHandler := pipeline.NewHandler(pipeline.NewService(pipeline.NewRepository(db)))
+	// The pipeline callbacks own the write path into station_summary, which
+	// the read handler above only ever reads — hence the shared repository.
+	pipelineHandler := pipeline.NewHandler(pipeline.NewService(pipeline.NewRepository(db), summaryRepo))
 	pipelineHandler.RegisterRoutes(api)
 
 	// ---- Firaz: transparency (public — this is the point of the panel) ----

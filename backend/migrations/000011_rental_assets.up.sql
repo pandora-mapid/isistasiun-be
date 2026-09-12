@@ -27,6 +27,10 @@ CREATE TABLE rental_assets (
 
 CREATE INDEX idx_rental_assets_station ON rental_assets (station_id);
 CREATE INDEX idx_rental_assets_status ON rental_assets (station_id, availability_status);
+-- Kurung dalam bukan gaya penulisan: elemen indeks yang berupa cast harus
+-- dibungkus tanda kurungnya sendiri. Tanpa itu Postgres menolak berkas ini
+-- dengan `syntax error at or near "::"`, seluruh migration ter-rollback, dan
+-- schema_migrations tertinggal dirty di versi 11.
 CREATE INDEX idx_rental_assets_location ON rental_assets USING GIST (
-    ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography
+    (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography)
 );

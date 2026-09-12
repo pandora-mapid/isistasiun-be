@@ -59,8 +59,11 @@ func (r *Repository) ListFlowObservations(ctx context.Context, stationID, entran
 		SELECT id, station_id, entrance_id, time_slot, observed_at, block_number,
 		       pedestrian_count, direction, COALESCE(weather_note, ''), surveyor_id, created_at
 		FROM flow_observations
-		WHERE ($1 = '' OR station_id = $1)
-		  AND ($2 = '' OR entrance_id = $2)
+		-- The id filters arrive as strings ("" means "no filter"), so the UUID
+		-- columns are cast rather than the parameters: comparing uuid = text
+		-- directly has no operator and fails the whole query.
+		WHERE ($1 = '' OR station_id::text = $1)
+		  AND ($2 = '' OR entrance_id::text = $2)
 		  AND ($3 = '' OR time_slot = $3)
 		ORDER BY observed_at DESC
 		LIMIT 500

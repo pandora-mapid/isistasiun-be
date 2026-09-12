@@ -27,6 +27,10 @@ CREATE TABLE rental_assets (
 
 CREATE INDEX idx_rental_assets_station ON rental_assets (station_id);
 CREATE INDEX idx_rental_assets_status ON rental_assets (station_id, availability_status);
+-- The extra parentheses are required, not stylistic: an expression index whose
+-- expression is not a bare function call (here, because of the ::geography
+-- cast) must be double-parenthesised, otherwise Postgres rejects it with
+-- "syntax error at or near ::" and the migration leaves the DB dirty.
 CREATE INDEX idx_rental_assets_location ON rental_assets USING GIST (
-    ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography
+    ((ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography))
 );

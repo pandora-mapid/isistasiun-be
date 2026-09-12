@@ -18,7 +18,7 @@ import numpy as np
 
 from shared.backend_client import push_monte_carlo_result
 from shared.categories import BAKU_CATEGORIES
-from shared.config import PURCHASE_CONVERSION, settings
+from shared.config import PURCHASE_CONVERSION, V_DEFAULT_BY_CATEGORY, settings
 
 N_ITERATIONS = 10_000
 
@@ -161,6 +161,16 @@ def load_distributions_from_db(station_id: str, time_slot: str) -> tuple[Categor
     for category, amount in v_rows:
         if category in v_by_cat:
             v_by_cat[category].append(float(amount))
+
+    # Receipt OCR is parked ("datanya tidak ada"), so most categories have no
+    # struk at all. Fall back to the documented, sourced default for the two
+    # categories that have one rather than dropping them: without this the
+    # whole station is unestimable and the pipeline publishes nothing. A
+    # category with neither struk nor a default stays out — better absent than
+    # invented.
+    for category, default in V_DEFAULT_BY_CATEGORY.items():
+        if category in v_by_cat and not v_by_cat[category]:
+            v_by_cat[category].append(default)
 
     potential: CategoryDists = {}
     captured: CategoryDists = {}

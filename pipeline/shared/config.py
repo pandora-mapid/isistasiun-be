@@ -34,3 +34,27 @@ settings = Settings()
 # transparansi. `completed_purchase_count` tetap dikumpulkan di lapangan dan
 # tetap tersimpan, tapi sebagai pembanding/QA, bukan sumber distribusi.
 PURCHASE_CONVERSION = 0.95
+
+
+# Nilai transaksi (V) di F x E x C x V, rupiah per pembelian.
+#
+# Sumber utama V adalah OCR struk (`struk_extractions`). Jalur itu berstatus
+# PARKIR — "datanya tidak ada" (AI/isi-stasiun-ai-integration.md 1) — jadi
+# angka di bawah dipakai sebagai cadangan untuk kategori yang belum punya
+# satu pun struk terbaca. Dokumen yang sama sudah mengunci keduanya sebagai
+# "default yang tampak & bisa disetel", dengan dasar publik:
+#
+#   makanan_minuman  ~Rp25.000  nilai transaksi grab-and-go transit
+#   ritel_kemasan    ~Rp30.000  band minimarket transit Rp20-40rb
+#                               (BUKAN Rp426rb Populix = belanja stok mingguan)
+#
+# Kategori lain sengaja tidak diberi default: tidak ada angka bersumber untuk
+# apotek/jasa/lainnya, dan menebaknya akan memalsukan sumber. Kategori tanpa
+# struk dan tanpa default di sini tidak ikut disimulasikan.
+#
+# Setiap rupiah yang lahir dari angka ini WAJIB tampil bertanda estimasi di
+# UI (FE mengeksposnya sebagai slider), bukan sebagai hasil pengukuran.
+V_DEFAULT_BY_CATEGORY: dict[str, float] = {
+    "makanan_minuman": 25_000.0,
+    "ritel_kemasan": 30_000.0,
+}

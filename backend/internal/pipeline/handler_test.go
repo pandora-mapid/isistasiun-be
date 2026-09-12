@@ -216,3 +216,19 @@ func TestStationSummaryRejectsTruncatedRun(t *testing.T) {
 	require.Equal(t, fiber.StatusBadRequest, code)
 	require.Nil(t, svc.stationSummary)
 }
+
+// Captured above potential means the two sides were fed flows measured on
+// different bases, and the published "gap" would come out negative — the exact
+// kind of number this project promises never to show.
+func TestStationSummaryRejectsCapturedAbovePotential(t *testing.T) {
+	svc := &stubService{}
+	body := strings.NewReplacer(
+		`"tertangkap":{"p10":200,"p50":400,"p90":600}`, `"tertangkap":{"p10":1800,"p50":2000,"p90":2200}`,
+		`"gap":{"p10":600,"p50":1100,"p90":1600}`, `"gap":{"p10":-700,"p50":-500,"p90":-200}`,
+		`"capture_rate":0.2667`, `"capture_rate":1.33`,
+	).Replace(validStationSummary)
+	code, _ := post(t, newApp(svc), "/pipeline/simulations/station-summary", body)
+
+	require.Equal(t, fiber.StatusBadRequest, code)
+	require.Nil(t, svc.stationSummary)
+}

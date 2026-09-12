@@ -30,7 +30,7 @@ from analysis.monte_carlo import (
 )
 from shared.backend_client import push_station_summary
 from shared.categories import BAKU_CATEGORIES
-from shared.config import PURCHASE_CONVERSION, settings
+from shared.config import PURCHASE_CONVERSION, V_DEFAULT_BY_CATEGORY, settings
 
 # The four measured slots, in the order the day runs.
 TIME_SLOTS = ("morning", "midday", "evening", "night")
@@ -161,7 +161,28 @@ def build_composition(composition_rows) -> list[dict]:
     ]
 
 
-def build_peak(context: dict, gap_by_slot: dict[str, dict[str, float]]) -> dict | None:
+def peak_v(struk_average: float | None, composition: list[dict]) -> float:
+    """V for the peak point: the station's average readable receipt, or — while
+    receipt OCR is parked — the documented defaults weighted by how much
+    traffic each category actually draws. Reporting 0 next to a real gap would
+    read as "nothing is spent here" rather than "not measured yet"."""
+    if struk_average:
+        return float(struk_average)
+
+    weight = value = 0.0
+    for entry in composition:
+        default = V_DEFAULT_BY_CATEGORY.get(entry["category"])
+        if default is None:
+            continue
+        share = entry["demand_share"]
+        weight += share
+        value += share * default
+    return round(value / weight, 2) if weight else 0.0
+
+
+def build_peak(
+    context: dict, gap_by_slot: dict[str, dict[str, float]], composition: list[dict]
+) -> dict | None:
     """The busiest counted door, carrying that slot's F/E/C/V and its own gap."""
     peak_door = context["peak_door"]
     if not peak_door:
@@ -174,7 +195,7 @@ def build_peak(context: dict, gap_by_slot: dict[str, dict[str, float]]) -> dict 
         "f": float(flow or avg_passers or 0),
         "e": round(float(avg_entry or 0), 4),
         "c": PURCHASE_CONVERSION,
-        "v": float(context["peak_v"] or 0),
+        "v": peak_v(context["peak_v"], composition),
         "gap": gap_by_slot.get(time_slot, {"p10": 0.0, "p50": 0.0, "p90": 0.0}),
     }
 
@@ -224,7 +245,21 @@ def run_station_summary(
         round(tertangkap["p50"] / potensi["p50"], 4) if potensi["p50"] > 0 else None
     )
 
+    # Refuse to publish an incoherent rollup rather than pushing a negative
+    # "gap". Both sides run through the same F x E x C x V instrument, so
+    # captured above potential means the two sides were fed flows measured on
+    # different bases — a station-wide door count against a shop-frontage
+    # count, say. The API rejects this too; failing here makes the cause
+    # visible in the job log instead of as an HTTP 400.
+    if tertangkap["p50"] > potensi["p50"]:
+        raise ValueError(
+            f"station {station_id}: tertangkap p50 ({tertangkap['p50']:.0f}) melebihi "
+            f"potensi p50 ({potensi['p50']:.0f}) — arus pintu dan arus depan gerai "
+            "tidak sepadan, periksa basis F untuk stasiun ini"
+        )
+
     context = load_context_from_db(station_id)
+    composition = build_composition(context["composition_rows"])
     payload = {
         "job_id": job_id,
         "station_id": station_id,
@@ -238,8 +273,8 @@ def run_station_summary(
         "struk_terbaca": context["struk_terbaca"],
         "pintu_dicacah": context["pintu_dicacah"],
         "pintu_ditahan": context["pintu_ditahan"],
-        "peak": build_peak(context, gap_by_slot),
-        "composition": build_composition(context["composition_rows"]),
+        "peak": build_peak(context, gap_by_slot, composition),
+        "composition": composition,
         "basis": BASIS_MONTE_CARLO,
     }
     push_station_summary(payload)

@@ -59,6 +59,21 @@ func (w StationSummaryWrite) Validate() error {
 			return fmt.Errorf("%s: p10/p50/p90 tidak terurut", r.name)
 		}
 	}
+	// Both sides are simulated with the identical F x E x C x V instrument, so
+	// captured can never legitimately exceed potential — if it does, the two
+	// sides were measured on different bases (e.g. a station-wide flow against
+	// a shop-frontage flow) and the "gap" would come out negative. Publishing
+	// that would put a nonsense number in front of a jury that was promised
+	// every figure is traceable, so it is refused at the door instead.
+	if w.Tertangkap.P50 > w.Potensi.P50 {
+		return fmt.Errorf("tertangkap.p50 melebihi potensi.p50 — basis pengukuran kedua sisi tidak sepadan")
+	}
+	if w.Gap.P50 < 0 {
+		return fmt.Errorf("gap.p50 negatif — basis pengukuran kedua sisi tidak sepadan")
+	}
+	if w.CaptureRate != nil && (*w.CaptureRate < 0 || *w.CaptureRate > 1) {
+		return fmt.Errorf("capture_rate %.4f di luar 0..1", *w.CaptureRate)
+	}
 	if w.Peak != nil {
 		switch w.Peak.TimeSlot {
 		case "morning", "midday", "evening", "night":

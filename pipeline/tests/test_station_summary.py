@@ -7,11 +7,12 @@ from analysis.station_summary import (
     AMBANG_GERAI,
     build_composition,
     build_peak,
+    peak_v,
     run_station_summary,
     summarize_p10_p50_p90,
 )
 from shared.categories import BAKU_CATEGORIES
-from shared.config import PURCHASE_CONVERSION
+from shared.config import PURCHASE_CONVERSION, V_DEFAULT_BY_CATEGORY
 
 
 def _const(value: float) -> VariableDistribution:
@@ -141,7 +142,7 @@ def test_composition_without_traffic_reports_zero_share_not_a_crash():
 
 def test_peak_carries_the_locked_c_and_its_own_slot_gap():
     gap_by_slot = {"evening": {"p10": 10.0, "p50": 20.0, "p90": 30.0}}
-    peak = build_peak(dict(_CONTEXT), gap_by_slot)
+    peak = build_peak(dict(_CONTEXT), gap_by_slot, [])
 
     assert peak["point_label"] == "Pintu Bawah"
     assert peak["time_slot"] == "evening"
@@ -151,4 +152,40 @@ def test_peak_carries_the_locked_c_and_its_own_slot_gap():
 
 def test_peak_is_none_when_no_door_was_counted():
     context = dict(_CONTEXT, peak_door=None)
-    assert build_peak(context, {}) is None
+    assert build_peak(context, {}, []) is None
+
+
+def test_peak_v_prefers_real_receipts():
+    assert peak_v(22000.0, [{"category": "ritel_kemasan", "demand_share": 1.0}]) == 22000.0
+
+
+# Receipt OCR is parked, so a station with no struk must still report a
+# defensible V — 0 would read as "nothing is spent here".
+def test_peak_v_falls_back_to_weighted_documented_defaults():
+    composition = [
+        {"category": "ritel_kemasan", "demand_share": 0.75},
+        {"category": "makanan_minuman", "demand_share": 0.25},
+        {"category": "jasa", "demand_share": 0.0},
+    ]
+    expected = (
+        0.75 * V_DEFAULT_BY_CATEGORY["ritel_kemasan"]
+        + 0.25 * V_DEFAULT_BY_CATEGORY["makanan_minuman"]
+    )
+    assert peak_v(None, composition) == pytest.approx(expected)
+
+
+def test_peak_v_is_zero_when_nothing_can_be_sourced():
+    assert peak_v(None, [{"category": "jasa", "demand_share": 1.0}]) == 0.0
+
+
+# Sudirman is the live example: only one door was counted (8 people entering)
+# while the gerai frontage carries a mocked rush-hour 324, so captured comes
+# out above potential. The run must fail loudly instead of publishing a
+# negative gap.
+def test_incoherent_flow_bases_refuse_to_publish(monkeypatch):
+    pushed = _patch_db(monkeypatch, {"morning": (_dists(8), _dists(324))})
+
+    with pytest.raises(ValueError, match="tidak sepadan"):
+        run_station_summary("job1", "st1", n_iterations=10_000)
+
+    assert pushed == []

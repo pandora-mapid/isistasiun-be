@@ -13,10 +13,10 @@ import (
 var ErrInvalidCredentials = errors.New("invalid email or password")
 
 type Service struct {
-	repo       *Repository
-	jwtSecret  string
-	accessTTL  time.Duration
-	refreshTTL time.Duration
+	repo               *Repository
+	jwtSecret          string
+	accessTTL          time.Duration
+	refreshTTL         time.Duration
 }
 
 func NewService(repo *Repository, jwtSecret string, accessTTLMinutes, refreshTTLHours int) *Service {

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,6 +33,7 @@ func main() {
 	email := flag.String("email", "", "operator email (required)")
 	role := flag.String("role", "operator", "role: operator or admin")
 	flag.Parse()
+	*email = strings.ToLower(strings.TrimSpace(*email))
 
 	if *email == "" {
 		log.Fatal("-email is required")

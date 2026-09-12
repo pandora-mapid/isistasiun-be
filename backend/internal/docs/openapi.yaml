@@ -471,7 +471,8 @@ paths:
           application/json:
             schema: {$ref: "#/components/schemas/LoginRequest"}
       responses:
-        "200": {$ref: "#/components/responses/TokenPair"}
+        "200":
+          $ref: "#/components/responses/AuthSession"
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "500": {$ref: "#/components/responses/InternalError"}
@@ -480,27 +481,38 @@ paths:
       tags: [Authentication]
       summary: Refresh an access token
       operationId: refreshToken
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: "#/components/schemas/RefreshRequest"}
+      description: Rotates the HttpOnly refresh cookie and returns a new in-memory access token.
+      security: [{RefreshCookie: []}]
       responses:
-        "200": {$ref: "#/components/responses/TokenPair"}
-        "400": {$ref: "#/components/responses/BadRequest"}
+        "200": {$ref: "#/components/responses/AuthSession"}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Revoke the current refresh session
+      operationId: logout
+      description: Revokes the complete refresh-token rotation family and clears the HttpOnly cookie. Idempotent when no cookie exists.
+      security: [{RefreshCookie: []}]
+      responses:
+        "200":
+          description: Session ended
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SuccessEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /api/v1/premium/deep-analysis/{station_id}:
     get:
       tags: [Premium]
       summary: Get premium deep analysis
       operationId: getPremiumDeepAnalysis
-      description: Placeholder endpoint; the analysis logic is not implemented yet.
+      description: Aggregated paid-tier analysis for one station. Access JWT and operator/admin role required.
       security: [{BearerAuth: []}]
       parameters:
         - $ref: "#/components/parameters/StationIDNamedPath"
       responses:
         "200":
-          description: Current placeholder response
+          description: Deep analysis bundle
           content:
             application/json:
               schema:
@@ -508,7 +520,7 @@ paths:
                   - $ref: "#/components/schemas/SuccessEnvelope"
                   - type: object
                     properties:
-                      data: {$ref: "#/components/schemas/DeepAnalysisPlaceholder"}
+                      data: {$ref: "#/components/schemas/DeepAnalysis"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
 components:
@@ -521,6 +533,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    RefreshCookie:
+      type: apiKey
+      in: cookie
+      name: isi_stasiun_refresh
   parameters:
     AreaTypeQuery:
       name: area_type
@@ -680,8 +696,12 @@ components:
               - type: object
                 properties:
                   data: {$ref: "#/components/schemas/TransparencyRecord"}
-    TokenPair:
-      description: Access and refresh tokens
+    AuthSession:
+      description: Access token and operator identity. The refresh token is set only as an HttpOnly cookie.
+      headers:
+        Set-Cookie:
+          description: HttpOnly refresh-session cookie, scoped to /api/v1/auth
+          schema: {type: string}
       content:
         application/json:
           schema:
@@ -689,7 +709,7 @@ components:
               - $ref: "#/components/schemas/SuccessEnvelope"
               - type: object
                 properties:
-                  data: {$ref: "#/components/schemas/TokenPair"}
+                  data: {$ref: "#/components/schemas/AuthSession"}
   schemas:
     SuccessEnvelope:
       type: object
@@ -1000,21 +1020,116 @@ components:
       properties:
         email: {type: string, format: email}
         password: {type: string, format: password}
-    RefreshRequest:
+    AuthSession:
       type: object
-      required: [refresh_token]
-      properties:
-        refresh_token: {type: string}
-    TokenPair:
-      type: object
-      required: [access_token, refresh_token, expires_in]
+      required: [access_token, expires_in, user]
       properties:
         access_token: {type: string}
-        refresh_token: {type: string}
         expires_in: {type: integer, description: Access token lifetime in seconds}
-    DeepAnalysisPlaceholder:
+        user: {$ref: "#/components/schemas/AuthUser"}
+    AuthUser:
       type: object
-      required: [station_id, note]
+      required: [id, email, role]
       properties:
-        station_id: {type: string}
-        note: {type: string, example: deep-analysis not yet implemented}
+        id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        role: {type: string, enum: [operator, admin]}
+    DeepAnalysis:
+      type: object
+      required: [station, spending_gap, totals, category_gaps, rent_flow_plots, event_potential, confidence, coverage]
+      properties:
+        station: {$ref: "#/components/schemas/PremiumStation"}
+        spending_gap:
+          type: array
+          items: {$ref: "#/components/schemas/PremiumSpendingGapSlot"}
+        totals: {$ref: "#/components/schemas/PremiumTotals"}
+        category_gaps:
+          type: array
+          items: {$ref: "#/components/schemas/PremiumCategoryGap"}
+        rent_flow_plots:
+          type: array
+          items: {$ref: "#/components/schemas/PremiumRentFlowPlot"}
+        event_potential:
+          type: array
+          items: {$ref: "#/components/schemas/PremiumEventPotential"}
+        confidence:
+          type: array
+          items: {$ref: "#/components/schemas/PremiumConfidence"}
+        coverage: {$ref: "#/components/schemas/PremiumCoverage"}
+    PremiumStation:
+      type: object
+      required: [id, name, code, operator, area_type, entrance_count]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        code: {type: string}
+        operator: {type: string}
+        area_type: {type: string}
+        entrance_count: {type: integer}
+    PremiumRange:
+      type: object
+      required: [p10, p90]
+      properties:
+        p10: {type: number}
+        p90: {type: number}
+    PremiumSpendingGapSlot:
+      type: object
+      required: [time_slot, potential, captured, gap, computed_at]
+      properties:
+        time_slot: {type: string}
+        potential: {$ref: "#/components/schemas/PremiumRange"}
+        captured: {$ref: "#/components/schemas/PremiumRange"}
+        gap: {$ref: "#/components/schemas/PremiumRange"}
+        computed_at: {type: string}
+    PremiumTotals:
+      type: object
+      required: [potential, captured, gap, slots_with_data, slots_expected]
+      properties:
+        potential: {$ref: "#/components/schemas/PremiumRange"}
+        captured: {$ref: "#/components/schemas/PremiumRange"}
+        gap: {$ref: "#/components/schemas/PremiumRange"}
+        slots_with_data: {type: integer}
+        slots_expected: {type: integer}
+        capture_rate_p50: {type: number, nullable: true}
+    PremiumCategoryGap:
+      type: object
+      required: [category, demand_in_area, available_in_station, missing]
+      properties:
+        category: {type: string}
+        demand_in_area: {type: boolean}
+        available_in_station: {type: boolean}
+        missing: {type: boolean}
+    PremiumRentFlowPlot:
+      type: object
+      required: [plot_id, offered_rent, measured_flow, index, is_outlier]
+      properties:
+        plot_id: {type: string, format: uuid}
+        offered_rent: {type: number}
+        measured_flow: {type: number}
+        index: {type: number}
+        is_outlier: {type: boolean}
+    PremiumEventPotential:
+      type: object
+      required: [zone_id, activation_score, recommended_slot]
+      properties:
+        zone_id: {type: string, format: uuid}
+        activation_score: {type: number}
+        recommended_slot: {type: string}
+    PremiumConfidence:
+      type: object
+      required: [zone_id, sample_count, is_thin_sample, confidence_score]
+      properties:
+        zone_id: {type: string, format: uuid}
+        sample_count: {type: integer}
+        is_thin_sample: {type: boolean}
+        confidence_score: {type: number}
+    PremiumCoverage:
+      type: object
+      required: [thin_sample_zones, total_zones, struk_total, struk_ambiguous, struk_usable, has_complete_slots]
+      properties:
+        thin_sample_zones: {type: integer}
+        total_zones: {type: integer}
+        struk_total: {type: integer}
+        struk_ambiguous: {type: integer}
+        struk_usable: {type: integer}
+        has_complete_slots: {type: boolean}

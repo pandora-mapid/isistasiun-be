@@ -14,10 +14,13 @@ import (
 
 var ErrInvalidCredentials = errors.New("invalid email or password")
 var ErrInvalidRefreshToken = errors.New("invalid or expired refresh token")
+var ErrNotEligibleForUpgrade = errors.New("only a user account can upgrade to premium")
 
 type authRepository interface {
 	GetByEmail(ctx context.Context, email string) (*Operator, error)
 	GetByID(ctx context.Context, id string) (*Operator, error)
+	Create(ctx context.Context, email, passwordHash string, role Role, stationID *string) (*Operator, error)
+	UpdateRole(ctx context.Context, id string, role Role) (*Operator, error)
 	CreateRefreshSession(ctx context.Context, session RefreshSession) error
 	RotateRefreshSession(ctx context.Context, oldTokenID, operatorID string, next RefreshSession) error
 	RevokeRefreshFamily(ctx context.Context, tokenID, operatorID string) error
@@ -52,6 +55,56 @@ func (s *Service) Login(ctx context.Context, email, password string) (*TokenPair
 		return nil, ErrInvalidCredentials
 	}
 
+	return s.issueAndPersist(ctx, op)
+}
+
+// Register creates a public, free-tier account and logs it straight in — no
+// email verification, no admin approval. Only RoleUser is reachable this way;
+// operator accounts are admin-provisioned (CreateOperator) and premium is
+// reached by Upgrade, never by registering directly.
+func (s *Service) Register(ctx context.Context, email, password string) (*TokenPairResponse, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+	op, err := s.repo.Create(ctx, strings.ToLower(strings.TrimSpace(email)), string(hash), RoleUser, nil)
+	if err != nil {
+		return nil, err
+	}
+	return s.issueAndPersist(ctx, op)
+}
+
+// Upgrade is the entire "payment" flow: no gateway, no charge, a RoleUser
+// account becomes RolePremium the moment it's called. Reissues a fresh token
+// pair so the new role claim takes effect immediately, without waiting for
+// the old access token to expire.
+func (s *Service) Upgrade(ctx context.Context, operatorID string) (*TokenPairResponse, error) {
+	op, err := s.repo.GetByID(ctx, operatorID)
+	if err != nil {
+		return nil, err
+	}
+	if op.Role != RoleUser {
+		return nil, ErrNotEligibleForUpgrade
+	}
+	upgraded, err := s.repo.UpdateRole(ctx, operatorID, RolePremium)
+	if err != nil {
+		return nil, err
+	}
+	return s.issueAndPersist(ctx, upgraded)
+}
+
+// CreateOperator is admin-only (enforced by the route guard, not here): an
+// operator represents a real organization and is scoped to one station from
+// the moment it exists, unlike a self-registered user.
+func (s *Service) CreateOperator(ctx context.Context, email, password, stationID string) (*Operator, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.Create(ctx, strings.ToLower(strings.TrimSpace(email)), string(hash), RoleOperator, &stationID)
+}
+
+func (s *Service) issueAndPersist(ctx context.Context, op *Operator) (*TokenPairResponse, error) {
 	tokens, session, err := s.issueTokenPair(op)
 	if err != nil {
 		return nil, err

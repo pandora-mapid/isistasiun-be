@@ -21,6 +21,24 @@ type fakeRepository struct {
 	rotatedTo      RefreshSession
 	revokedTokenID string
 	rotateErr      error
+	createErr      error
+}
+
+func (f *fakeRepository) Create(_ context.Context, email, passwordHash string, role Role, stationID *string) (*Operator, error) {
+	if f.createErr != nil {
+		return nil, f.createErr
+	}
+	op := &Operator{ID: "created-id", Email: email, PasswordHash: passwordHash, Role: role, StationID: stationID}
+	f.operator = op
+	return op, nil
+}
+
+func (f *fakeRepository) UpdateRole(_ context.Context, id string, role Role) (*Operator, error) {
+	if f.operator == nil || id != f.operator.ID {
+		return nil, ErrNotFound
+	}
+	f.operator.Role = role
+	return f.operator, nil
 }
 
 func (f *fakeRepository) GetByEmail(_ context.Context, email string) (*Operator, error) {

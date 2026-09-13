@@ -86,14 +86,38 @@ func tokenWithStation(t *testing.T, role, typ string, ttl time.Duration, station
 	return signed
 }
 
-// TestPublicRoutesNeedNoCredentials covers the regression directly: these must
-// never answer 401 or 403, whoever asks. Transparency is public by design —
-// section 9 makes traceability the product's central claim, so putting the
-// evidence panel behind a key would defeat it.
+// TestPublicRoutesNeedNoCredentials covers routes that stayed open in the
+// 2026-09-13 account-tiers change: transparency (section 9 makes
+// traceability the product's central claim — an account wall would defeat
+// it, judges included), copilot, and the two account-entry endpoints
+// (login/register can't require a session to reach them).
 func TestPublicRoutesNeedNoCredentials(t *testing.T) {
 	app := newTestApp()
 
 	for _, tc := range []struct{ method, path string }{
+		{http.MethodGet, "/api/v1/transparency/struk/abc"},
+		{http.MethodGet, "/api/v1/transparency/gerai/abc"},
+		{http.MethodGet, "/api/v1/transparency/properti/abc"},
+		{http.MethodGet, "/api/v1/transparency/station/abc/records"},
+		{http.MethodPost, "/api/v1/auth/login"},
+		{http.MethodPost, "/api/v1/auth/register"},
+		{http.MethodPost, "/api/v1/copilot/query"},
+	} {
+		got := do(t, app, tc.method, tc.path, nil)
+		if got == http.StatusUnauthorized || got == http.StatusForbidden {
+			t.Errorf("%s %s: public route rejected with %d — a guard is leaking onto it",
+				tc.method, tc.path, got)
+		}
+	}
+}
+
+// TestBasicTierRequiresAnyLogin covers the 2026-09-13 policy change: base map
+// and analysis routes used to be fully public and now need a session, but
+// ANY role qualifies — there is no RequireRole here, unlike /premium.
+func TestBasicTierRequiresAnyLogin(t *testing.T) {
+	app := newTestApp()
+
+	paths := []struct{ method, path string }{
 		{http.MethodGet, "/api/v1/stations"},
 		{http.MethodGet, "/api/v1/stations/abc"},
 		{http.MethodGet, "/api/v1/stations/abc/entrances"},
@@ -106,17 +130,22 @@ func TestPublicRoutesNeedNoCredentials(t *testing.T) {
 		{http.MethodGet, "/api/v1/analytics/station-summary"},
 		{http.MethodGet, "/api/v1/analytics/station-summary/abc"},
 		{http.MethodGet, "/api/v1/confidence-layer"},
-		{http.MethodGet, "/api/v1/transparency/struk/abc"},
-		{http.MethodGet, "/api/v1/transparency/gerai/abc"},
-		{http.MethodGet, "/api/v1/transparency/properti/abc"},
-		{http.MethodGet, "/api/v1/transparency/station/abc/records"},
-		{http.MethodPost, "/api/v1/auth/login"},
-		{http.MethodPost, "/api/v1/copilot/query"},
-	} {
-		got := do(t, app, tc.method, tc.path, nil)
-		if got == http.StatusUnauthorized || got == http.StatusForbidden {
-			t.Errorf("%s %s: public route rejected with %d — a guard is leaking onto it",
-				tc.method, tc.path, got)
+	}
+
+	for _, tc := range paths {
+		if got := do(t, app, tc.method, tc.path, nil); got != http.StatusUnauthorized {
+			t.Errorf("%s %s without token: got %d, want 401", tc.method, tc.path, got)
+		}
+	}
+
+	for _, role := range []string{"user", "premium", "operator", "admin"} {
+		for _, tc := range paths {
+			got := do(t, app, tc.method, tc.path, map[string]string{
+				"Authorization": "Bearer " + token(t, role, "access", time.Hour),
+			})
+			if got == http.StatusUnauthorized || got == http.StatusForbidden {
+				t.Errorf("role %q on %s %s: rejected with %d, want to reach the handler", role, tc.method, tc.path, got)
+			}
 		}
 	}
 }
@@ -180,6 +209,7 @@ func TestPremiumRequiresOperatorToken(t *testing.T) {
 		{"expired token", map[string]string{"Authorization": "Bearer " + token(t, "operator", "access", -time.Minute)}, http.StatusUnauthorized},
 		{"refresh token", map[string]string{"Authorization": "Bearer " + token(t, "operator", "refresh", time.Hour)}, http.StatusUnauthorized},
 		{"authenticated but wrong role", map[string]string{"Authorization": "Bearer " + token(t, "surveyor", "access", time.Hour)}, http.StatusForbidden},
+		{"plain user, not yet premium", map[string]string{"Authorization": "Bearer " + token(t, "user", "access", time.Hour)}, http.StatusForbidden},
 	}
 
 	for _, tc := range cases {
@@ -188,11 +218,13 @@ func TestPremiumRequiresOperatorToken(t *testing.T) {
 		}
 	}
 
-	// Admin carries no station claim and reaches every station unscoped.
-	if got := do(t, app, http.MethodGet, path, map[string]string{
-		"Authorization": "Bearer " + token(t, "admin", "access", time.Hour),
-	}); got == http.StatusUnauthorized || got == http.StatusForbidden {
-		t.Errorf("admin: rejected with %d, want to reach the handler", got)
+	// Admin and premium carry no station claim and reach every station unscoped.
+	for _, role := range []string{"admin", "premium"} {
+		if got := do(t, app, http.MethodGet, path, map[string]string{
+			"Authorization": "Bearer " + token(t, role, "access", time.Hour),
+		}); got == http.StatusUnauthorized || got == http.StatusForbidden {
+			t.Errorf("%s: rejected with %d, want to reach the handler", role, got)
+		}
 	}
 
 	// Operator scoped to the requested station reaches the handler too.
@@ -223,6 +255,35 @@ func TestPremiumOperatorIsScopedToItsOwnStation(t *testing.T) {
 		if got != http.StatusForbidden {
 			t.Errorf("%s: got %d, want %d", tc.name, got, http.StatusForbidden)
 		}
+	}
+}
+
+// /auth/upgrade needs a session (any role — the service layer itself decides
+// whether that account is eligible), /admin/operators needs an admin one.
+func TestAccountManagementRoutesGateCorrectly(t *testing.T) {
+	app := newTestApp()
+
+	if got := do(t, app, http.MethodPost, "/api/v1/auth/upgrade", nil); got != http.StatusUnauthorized {
+		t.Errorf("upgrade without token: got %d, want 401", got)
+	}
+	if got := do(t, app, http.MethodPost, "/api/v1/auth/upgrade", map[string]string{
+		"Authorization": "Bearer " + token(t, "user", "access", time.Hour),
+	}); got == http.StatusUnauthorized || got == http.StatusForbidden {
+		t.Errorf("upgrade with a user token: rejected with %d, want to reach the handler", got)
+	}
+
+	if got := do(t, app, http.MethodPost, "/api/v1/admin/operators", nil); got != http.StatusUnauthorized {
+		t.Errorf("create operator without token: got %d, want 401", got)
+	}
+	if got := do(t, app, http.MethodPost, "/api/v1/admin/operators", map[string]string{
+		"Authorization": "Bearer " + token(t, "operator", "access", time.Hour),
+	}); got != http.StatusForbidden {
+		t.Errorf("create operator as non-admin: got %d, want 403", got)
+	}
+	if got := do(t, app, http.MethodPost, "/api/v1/admin/operators", map[string]string{
+		"Authorization": "Bearer " + token(t, "admin", "access", time.Hour),
+	}); got == http.StatusUnauthorized || got == http.StatusForbidden {
+		t.Errorf("create operator as admin: rejected with %d, want to reach the handler", got)
 	}
 }
 

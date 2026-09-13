@@ -53,7 +53,11 @@ func Load() *Config {
 		PipelineServiceAPIKey: getEnv("PIPELINE_SERVICE_API_KEY", ""),
 
 		AIServiceURL:            getEnv("AI_SERVICE_URL", "http://localhost:8000"),
-		AIServiceTimeoutSeconds: getEnvInt("AI_SERVICE_TIMEOUT_SECONDS", 15),
+		// 30s so a model answer that needs a verify-retry still reaches the
+		// client. The AI service's own per-call timeout is smaller (12s), so it
+		// self-falls-back to its grounded deterministic reply INSIDE this
+		// window rather than us cutting it off and losing that reply.
+		AIServiceTimeoutSeconds: getEnvInt("AI_SERVICE_TIMEOUT_SECONDS", 30),
 
 		RateLimitRPM:   getEnvInt("RATE_LIMIT_RPM", 60),
 		TrustedProxies: getEnvList("TRUSTED_PROXIES", ""),

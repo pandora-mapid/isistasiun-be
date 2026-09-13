@@ -36,6 +36,38 @@ services:
       postgres:
         condition: service_healthy
 
+  # `make be-migrate-up` / `be-migrate-down`. Not started by `up`.
+  migrate:
+    image: migrate/migrate:v4.17.1
+    profiles: [tools]
+    env_file: .env
+    volumes:
+      - ./backend/migrations:/migrations
+    entrypoint: ["/bin/sh", "-c"]
+    command: 'migrate -path /migrations -database "$$DATABASE_URL" up'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ai:
+    build:
+      context: ../isistasiun-ai
+      dockerfile: Dockerfile
+    container_name: isistasiun-ai
+    restart: unless-stopped
+    env_file: ../isistasiun-ai/.env
+    environment:
+      # Overrides isistasiun-ai/.env's GO_API_BASE_URL (which points at
+      # localhost for standalone/venv dev) with the compose network name —
+      # same pattern as `backend`'s DATABASE_URL override above.
+      GO_API_BASE_URL: http://backend:8080/api/v1
+    ports:
+      - "${AI_SERVICE_PORT:-8000}:8000"
+    volumes:
+      - ../isistasiun-ai:/app
+    depends_on:
+      - backend
+
   pipeline:
     build:
       context: ./pipeline

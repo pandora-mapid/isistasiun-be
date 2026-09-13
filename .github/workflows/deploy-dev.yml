@@ -1,0 +1,69 @@
+name: Deploy (dev)
+
+# Dulu: build & push image ke GHCR, lalu SCP compose/Makefile ke VPS, lalu
+# VPS pull image itu. Sekarang: VPS punya checkout git sendiri di
+# ~/isistasiun-be, dan workflow ini cuma menyuruhnya fetch commit yang baru
+# di-push lalu build sendiri lewat docker-compose.deploy.yml — tidak ada lagi
+# image yang didorong ke mana pun.
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # Deploy key per-repo dimatikan oleh kebijakan org pandora-mapid, jadi
+      # VPS tidak bisa fetch pakai SSH key sendiri. Sebagai gantinya, PAT
+      # fine-grained (scope: Contents, repo ini + isistasiun-fe) disuntikkan
+      # lewat secret REPO_PULL_TOKEN, dipakai sebentar sebagai git credential
+      # helper lalu langsung di-unset — tidak pernah ditulis ke disk VPS.
+      - name: Fetch, build & restart on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: REPO_PULL_TOKEN
+          script_stop: true
+          script: |
+            set -e
+
+            cd ~/isistasiun-be
+
+            git config --local credential.helper \
+              '!f() { echo "username=x-access-token"; echo "password=$REPO_PULL_TOKEN"; }; f'
+            git fetch origin dev
+            git config --local --unset credential.helper
+            git reset --hard origin/dev
+
+            test -f .env || { echo "::error::~/isistasiun-be/.env is missing — create it from .env.deploy.example"; exit 1; }
+
+            COMPOSE="docker compose -f docker-compose.deploy.yml --env-file .env"
+            $COMPOSE build backend
+            if ! $COMPOSE up -d --remove-orphans; then
+              echo "::error::compose startup failed"
+              $COMPOSE logs --tail=100 migrate
+              exit 1
+            fi
+            docker image prune -f
+
+            echo "waiting for health..."
+            for i in $(seq 1 20); do
+              if $COMPOSE exec -T backend wget -q -O /dev/null http://127.0.0.1:8080/healthz 2>/dev/null; then
+                echo "healthy"; exit 0
+              fi
+              sleep 3
+            done
+            echo "::error::backend did not become healthy"
+            $COMPOSE ps
+            $COMPOSE logs --tail=60 backend migrate
+            exit 1
+        env:
+          REPO_PULL_TOKEN: ${{ secrets.REPO_PULL_TOKEN }}

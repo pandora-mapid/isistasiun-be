@@ -13,13 +13,14 @@ func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) SubmitFlowObservation(ctx context.Context, req CreateFlowObservationRequest) (string, error) {
+func (s *Service) SubmitFlowObservation(ctx context.Context, req CreateFlowObservationRequest, idempotencyKey string) (string, error) {
 	observedAt, err := parseTime(req.ObservedAt)
 	if err != nil {
 		return "", fmt.Errorf("invalid observed_at: %w", err)
 	}
 
 	o := FlowObservation{
+		IdempotencyKey:  idempotencyKey,
 		StationID:       req.StationID,
 		EntranceID:      req.EntranceID,
 		TimeSlot:        req.TimeSlot,
@@ -33,7 +34,7 @@ func (s *Service) SubmitFlowObservation(ctx context.Context, req CreateFlowObser
 	return s.repo.InsertFlowObservation(ctx, o)
 }
 
-func (s *Service) SubmitEntryConversion(ctx context.Context, req CreateEntryConversionRequest) (string, error) {
+func (s *Service) SubmitEntryConversion(ctx context.Context, req CreateEntryConversionRequest, idempotencyKey string) (string, error) {
 	observedAt, err := parseTime(req.ObservedAt)
 	if err != nil {
 		return "", fmt.Errorf("invalid observed_at: %w", err)
@@ -49,6 +50,7 @@ func (s *Service) SubmitEntryConversion(ctx context.Context, req CreateEntryConv
 	}
 
 	o := EntryConversionObservation{
+		IdempotencyKey:         idempotencyKey,
 		StationID:              req.StationID,
 		GeraiID:                req.GeraiID,
 		Category:               req.Category,

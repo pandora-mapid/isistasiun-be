@@ -7,8 +7,8 @@ terpisah.
 
 Mengukur *spending gap* per stasiun: potensi belanja komuter (`F × E × C × V`
 per kategori) vs belanja yang tertangkap gerai in-station, disimulasikan
-Monte Carlo (P10-P90). Lihat `Brainstorm_Claude_-_MAPID.md` dan
-`ListPandora_1__IsiStasiun_docx.pdf` untuk detail metodologi lengkap.
+Monte Carlo (P10-P90). Metodologi lengkap + spec: `../Context/` (mulai dari
+`../Context/INDEX.md`). Panduan agent: [`CLAUDE.md`](CLAUDE.md).
 
 ## Tech Stack
 
@@ -33,9 +33,9 @@ isi-stasiun/
 └── docker-compose.prod.yml
 ```
 
-Pembagian ownership: lihat `BACKEND_TASK_DIVISION_3_PERSON.md`
-(Priyapta: station/analytics/confidence/copilot-routing · Arzaka: survey +
-pipeline callback · Firaz: transparency/auth/premium/copilot-logic).
+Pembagian ownership (Priyapta: station/analytics/confidence/copilot-routing ·
+Arzaka: survey + pipeline callback · Firaz: transparency/auth/premium/copilot-logic)
+— detail di `../Context/02-BACKEND-SPEC.md` §2.
 
 ## Quick Start
 
@@ -43,8 +43,30 @@ pipeline callback · Firaz: transparency/auth/premium/copilot-logic).
 cp .env.example .env        # isi API key MAPID, Gemini, JWT secret, dll
 make up                      # docker compose up -d --build
 make be-migrate-up           # jalankan migration (butuh golang-migrate, lihat catatan di bawah)
+make be-seed                  # (opsional) demo data station-summary — 2 simpul, buat coba endpoint
 make be-test                 # go test ./... — tier akses + klasifikasi copilot
+make be-ingest-field         # muat data survei lapangan asli (lihat di bawah)
 ```
+
+`make be-seed` mengisi `stations` + `station_summary` untuk Manggarai & Sudirman
+supaya `GET /api/v1/analytics/station-summary` mengembalikan data di stack yang
+masih kosong (`backend/seed/demo_station_summary.sql`, `make be-seed-down` untuk
+menghapusnya). Dev/demo saja — data sungguhan datang dari pipeline Monte Carlo
+per simpul lewat `/pipeline/simulations/monte-carlo`.
+
+Data survei lapangan sungguhan (bukan demo) dimuat dari fixture di repo
+sebelah `../isistasiun-ai/data/source/field/` lewat endpoint `/survey/*`:
+
+```bash
+make be-ingest-field DRY_RUN=1   # lihat payload dulu, tanpa menulis apa pun
+make be-ingest-field             # kirim (idempoten, aman diulang)
+```
+
+Yang dimuat: 36 baris `entry_conversion_observations` (2 hari x 2 slot terukur
+x tiap gerai di kedua stasiun) + 6 baris `flow_observations` (3 pintu, arah
+masuk dan keluar). Baris `source: "mock"` (slot siang sintetis) sengaja
+**tidak** dimuat — memasukkannya sebagai baris survei akan mencampur angka
+sintetis ke sumber kebenaran. Detail pemetaan ada di `backend/cmd/ingestfield/`.
 
 Buat akun operator untuk tier premium (password dibaca dari env, bukan flag,
 supaya tidak masuk shell history):
@@ -55,6 +77,12 @@ OPERATOR_PASSWORD=... go run ./cmd/createoperator -email ops@kai.id -role operat
 
 Sengaja tidak ada seed migration untuk ini — migration akan meng-commit hash
 password ke repo dan menyamakan kredensial di semua checkout.
+
+Autentikasi browser memakai access JWT berumur pendek di response login dan
+refresh JWT dalam cookie `HttpOnly`. `POST /api/v1/auth/refresh` merotasi cookie;
+`POST /api/v1/auth/logout` mencabut seluruh keluarga sesi. Jalankan migration
+terbaru sebelum mengaktifkan login karena sesi refresh disimpan di tabel
+`operator_refresh_sessions`.
 
 - Backend API: http://localhost:8080/api/v1 (health check: `/healthz`)
 - Swagger UI (development only): http://localhost:8080/docs
@@ -72,16 +100,67 @@ air
 
 **Pipeline** (jalankan job manual, bukan long-running server):
 ```bash
+# OCR / klasifikasi batch (butuh GEMINI_API_KEY)
 docker compose exec pipeline python main.py extract-struk \
   --station-id <uuid> --job-id <job-id> --images-dir /app/data/struk
+docker compose exec pipeline python main.py extract-properti \
+  --station-id <uuid> --job-id <job-id> --images-dir /app/data/properti --manifest /app/data/plots.json
+docker compose exec pipeline python main.py extract-gerai \
+  --station-id <uuid> --job-id <job-id> --images-dir /app/data/gerai --manifest /app/data/gerai.json
+
+# Simulasi Monte Carlo spending-gap (baca survey + struk_extractions dari Postgres)
+docker compose exec pipeline python main.py simulate \
+  --station-id <uuid> --job-id <job-id> --time-slot morning
+
+# Test logika pipeline (parsing nominal struk, normalisasi kategori, Monte Carlo)
+docker compose exec pipeline python -m pytest -q
 ```
+
+`--manifest` opsional: JSON `{"G-07.jpg": {"gerai_id": "<uuid>"}}` memetakan
+nama file foto ke id UUID dari lembar inventaris survei. Tanpa manifest,
+id diambil dari nama file (hanya valid kalau tim survei menamai file dengan UUID).
 
 ## Migrations
 
-Skema ada di `backend/migrations/*.sql` (format `golang-migrate`). Install
-[golang-migrate](https://github.com/golang-migrate/migrate) CLI untuk
-apply/rollback manual, atau tambahkan ke Dockerfile image kalau mau otomatis
-lewat `make be-migrate-up`.
+Skema ada di `backend/migrations/*.sql` (format `golang-migrate`).
+
+- **Lokal:** `make be-migrate-up` / `make be-migrate-down` — pakai image
+  `migrate/migrate` lewat compose profile `tools`, nggak perlu install CLI.
+- **Server:** binary `migrate` ikut di image prod (`backend/Dockerfile`), dan
+  service `migrate` di `docker-compose.deploy.yml` menjalankannya sekali tiap
+  `up` sebelum `backend` start (`depends_on: service_completed_successfully`).
+
+## Deploy (VPS + CI/CD)
+
+CI (`.github/workflows/ci.yml`) jalan tiap PR/push: `go vet` + `go test` +
+`pytest` + build image. Deploy dev (`deploy-dev.yml`) jalan tiap push ke `dev`:
+build & push image ke `ghcr.io/pandora-mapid/isistasiun-be/{api,pipeline}` →
+scp stack file ke VPS → SSH → `docker compose pull && up -d` → cek `/healthz`.
+
+TLS + routing di-handle **reverse proxy bersama** yang sudah ada di box
+(`trackster-nginx-1` di network `shared-web-net`). Stack ini cuma expose
+`backend` di network itu sebagai `${COMPOSE_PROJECT_NAME}-backend-1:8080`.
+Postgres pakai container sendiri (butuh PostGIS), internal only.
+
+**Sekali di server** (`/opt/isistasiun`, setelah deploy pertama nge-scp file ke sini):
+
+```bash
+cp .env.deploy.example .env      # isi semua CHANGE_ME (DATABASE_URL & POSTGRES_PASSWORD konsisten)
+```
+
+Lalu di config `trackster-nginx-1`, tambah server block:
+`api.dev.isistasiun.trackster.cloud` → `http://isistasiun-dev-backend-1:8080`,
+issue cert lewat certbot yang sama.
+
+Deploy berikutnya cukup `git push` ke `dev`.
+
+- `.env` di server **tidak** disentuh CI — itu satu-satunya sumber kebenaran.
+  `IMAGE_TAG` di-overwrite tiap deploy ke tag per-commit.
+- Container `pipeline` di-gate profile `batch` (tidak nyala terus). Jalankan job:
+  `make pipeline-job ARGS="extract-struk --station-id <uuid> --job-id j1 --images-dir /app/data/struk"`
+- GitHub Secrets yang dipakai: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (deploy key
+  khusus, bukan key pribadi), `GHCR_PAT` (PAT classic, scope `write:packages` +
+  `read:packages`).
 
 ## Catatan Arsitektur
 

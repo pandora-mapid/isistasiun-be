@@ -17,5 +17,8 @@ boto3==1.34.144
 # Vision-language API client (Gemini)
 google-generativeai==0.7.2
 
-# DB (only if pipeline reads GEO MAPID exports directly from Postgres)
+# DB (pipeline reads survey/struk tables for the Monte Carlo simulation)
 psycopg[binary]==3.2.1
+
+# Tests
+pytest==8.3.2

@@ -160,6 +160,35 @@ paths:
                         items: {$ref: "#/components/schemas/RentFlowIndex"}
         "400": {$ref: "#/components/responses/BadRequest"}
         "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/analytics/rental-assets:
+    get:
+      tags: [Analytics]
+      summary: List source-backed rental assets
+      operationId: listRentalAssets
+      parameters:
+        - $ref: "#/components/parameters/StationIDQuery"
+        - name: station_code
+          in: query
+          schema: {type: string, example: MRI}
+          description: Station code filter, useful when the caller has not mapped UUIDs yet
+        - name: status
+          in: query
+          schema: {type: string, enum: [occupied, available, needs_verification]}
+      responses:
+        "200":
+          description: Rental asset list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: {$ref: "#/components/schemas/RentalAsset"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /api/v1/analytics/event-potential:
     get:
       tags: [Analytics]
@@ -180,6 +209,31 @@ paths:
                       data:
                         type: array
                         items: {$ref: "#/components/schemas/EventPotential"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/analytics/station-summary:
+    get:
+      tags: [Analytics]
+      summary: Station-level rollup for the Compare View (2 simpul, free tier)
+      description: >
+        One row per station: a P10/P50/P90 range for potensi/tertangkap/gap, the
+        capture rate, the F/E/C/V of the busiest observation point, and the
+        category composition. `basis` says whether the range came from a real
+        station-scoped Monte Carlo run (`monte-carlo-simpul`) or a stopgap
+        aggregate of point figures (`agregat-titik`).
+      operationId: listStationSummary
+      responses:
+        "200": {$ref: "#/components/responses/StationSummaryList"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/analytics/station-summary/{station_id}:
+    get:
+      tags: [Analytics]
+      summary: Station-level rollup for one station
+      operationId: getStationSummary
+      parameters:
+        - $ref: "#/components/parameters/StationIDNamedPath"
+      responses:
+        "200": {$ref: "#/components/responses/StationSummaryList"}
         "400": {$ref: "#/components/responses/BadRequest"}
         "500": {$ref: "#/components/responses/InternalError"}
   /api/v1/confidence-layer:
@@ -235,6 +289,7 @@ paths:
       summary: Submit a pedestrian flow observation
       operationId: createFlowObservation
       security: [{ServiceKeyAuth: []}]
+      parameters: [{$ref: "#/components/parameters/IdempotencyKeyHeader"}]
       requestBody:
         required: true
         content:
@@ -280,6 +335,7 @@ paths:
       summary: Submit an entry and purchase conversion observation
       operationId: createEntryConversionObservation
       security: [{ServiceKeyAuth: []}]
+      parameters: [{$ref: "#/components/parameters/IdempotencyKeyHeader"}]
       requestBody:
         required: true
         content:
@@ -353,6 +409,27 @@ paths:
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/pipeline/simulations/station-summary:
+    post:
+      tags: [Pipeline]
+      summary: Ingest a station-scoped Monte Carlo rollup
+      description: >-
+        Whole-station, whole-day figure behind the Compare View. Separate from
+        /pipeline/simulations/monte-carlo, which is per (station, time_slot)
+        and carries only P10/P90. Upserts on (station_id, day_type), so a
+        retried pipeline run replaces the row instead of duplicating it.
+      operationId: ingestStationSummary
+      security: [{ServiceKeyAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/StationSummaryCallback"}
+      responses:
+        "200": {$ref: "#/components/responses/Ingested"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /api/v1/transparency/struk/{id}:
     get:
       tags: [Transparency]
@@ -415,7 +492,8 @@ paths:
           application/json:
             schema: {$ref: "#/components/schemas/LoginRequest"}
       responses:
-        "200": {$ref: "#/components/responses/TokenPair"}
+        "200":
+          $ref: "#/components/responses/AuthSession"
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "500": {$ref: "#/components/responses/InternalError"}
@@ -424,27 +502,38 @@ paths:
       tags: [Authentication]
       summary: Refresh an access token
       operationId: refreshToken
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: "#/components/schemas/RefreshRequest"}
+      description: Rotates the HttpOnly refresh cookie and returns a new in-memory access token.
+      security: [{RefreshCookie: []}]
       responses:
-        "200": {$ref: "#/components/responses/TokenPair"}
-        "400": {$ref: "#/components/responses/BadRequest"}
+        "200": {$ref: "#/components/responses/AuthSession"}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Revoke the current refresh session
+      operationId: logout
+      description: Revokes the complete refresh-token rotation family and clears the HttpOnly cookie. Idempotent when no cookie exists.
+      security: [{RefreshCookie: []}]
+      responses:
+        "200":
+          description: Session ended
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SuccessEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /api/v1/premium/deep-analysis/{station_id}:
     get:
       tags: [Premium]
       summary: Get premium deep analysis
       operationId: getPremiumDeepAnalysis
-      description: Placeholder endpoint; the analysis logic is not implemented yet.
+      description: Aggregated paid-tier analysis for one station. Access JWT and operator/admin role required.
       security: [{BearerAuth: []}]
       parameters:
         - $ref: "#/components/parameters/StationIDNamedPath"
       responses:
         "200":
-          description: Current placeholder response
+          description: Deep analysis bundle
           content:
             application/json:
               schema:
@@ -452,7 +541,7 @@ paths:
                   - $ref: "#/components/schemas/SuccessEnvelope"
                   - type: object
                     properties:
-                      data: {$ref: "#/components/schemas/DeepAnalysisPlaceholder"}
+                      data: {$ref: "#/components/schemas/DeepAnalysis"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
 components:
@@ -465,6 +554,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    RefreshCookie:
+      type: apiKey
+      in: cookie
+      name: isi_stasiun_refresh
   parameters:
     AreaTypeQuery:
       name: area_type
@@ -489,6 +582,14 @@ components:
       in: path
       required: true
       schema: {type: string, format: uuid}
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: >
+        Opaque client-generated key. Re-submitting with the same key returns
+        the original observation's id instead of inserting a duplicate.
+      schema: {type: string, maxLength: 255}
   responses:
     BadRequest:
       description: Invalid request
@@ -544,6 +645,48 @@ components:
                   data:
                     type: array
                     items: {$ref: "#/components/schemas/SpendingGap"}
+    StationSummaryList:
+      description: Station-level rollup rows, biggest daily gap first
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/SuccessEnvelope"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: "#/components/schemas/StationSummary"}
+          example:
+            success: true
+            message: Berhasil mengambil ringkasan simpul
+            data:
+              - station_id: a0000000-0000-4000-8000-000000000001
+                station_name: Manggarai
+                typology: mixed
+                day_type: weekday
+                pintu_dicacah: 3
+                pintu_ditahan: 0
+                potensi: {p10: 7200000, p50: 8200000, p90: 10500000}
+                tertangkap: {p10: 2200000, p50: 2500000, p90: 3200000}
+                gap: {p10: 5000000, p50: 5700000, p90: 7300000}
+                capture_rate: 0.3049
+                confidence: {min: 0.77, max: 0.87}
+                struk_terbaca: 713
+                peak:
+                  point_label: Koridor Transit Utara
+                  time_slot: morning
+                  f: 1574
+                  e: 0.07
+                  c: 0.66
+                  v: 30000
+                  gap: {p10: 860000, p50: 1100000, p90: 1520000}
+                composition:
+                  - {category: makanan_minuman, demand_share: 0.4666, gerai_count: 3, is_missing: false}
+                  - {category: ritel_kemasan, demand_share: 0.1837, gerai_count: 2, is_missing: true}
+                  - {category: apotek_kesehatan, demand_share: 0.1061, gerai_count: 0, is_missing: true}
+                basis: monte-carlo-simpul
+                computed_at: "2026-08-20T10:00:00Z"
     CreatedID:
       description: Record created
       content:
@@ -574,8 +717,12 @@ components:
               - type: object
                 properties:
                   data: {$ref: "#/components/schemas/TransparencyRecord"}
-    TokenPair:
-      description: Access and refresh tokens
+    AuthSession:
+      description: Access token and operator identity. The refresh token is set only as an HttpOnly cookie.
+      headers:
+        Set-Cookie:
+          description: HttpOnly refresh-session cookie, scoped to /api/v1/auth
+          schema: {type: string}
       content:
         application/json:
           schema:
@@ -583,7 +730,7 @@ components:
               - $ref: "#/components/schemas/SuccessEnvelope"
               - type: object
                 properties:
-                  data: {$ref: "#/components/schemas/TokenPair"}
+                  data: {$ref: "#/components/schemas/AuthSession"}
   schemas:
     SuccessEnvelope:
       type: object
@@ -648,14 +795,68 @@ components:
         gap_high_p90: {type: number, format: double}
         time_slot: {$ref: "#/components/schemas/TimeSlot"}
         computed_at: {type: string, format: date-time}
+    MoneyRange:
+      type: object
+      required: [p10, p50, p90]
+      properties:
+        p10: {type: number, format: double}
+        p50: {type: number, format: double}
+        p90: {type: number, format: double}
+    StationSummary:
+      type: object
+      required: [station_id, station_name, typology, day_type, pintu_dicacah, pintu_ditahan, potensi, tertangkap, gap, capture_rate, confidence, struk_terbaca, peak, composition, basis, computed_at]
+      properties:
+        station_id: {type: string, format: uuid}
+        station_name: {type: string}
+        typology: {$ref: "#/components/schemas/AreaType"}
+        day_type: {type: string, enum: [weekday, weekend]}
+        pintu_dicacah: {type: integer, minimum: 0}
+        pintu_ditahan: {type: integer, minimum: 0}
+        potensi: {$ref: "#/components/schemas/MoneyRange"}
+        tertangkap: {$ref: "#/components/schemas/MoneyRange"}
+        gap: {$ref: "#/components/schemas/MoneyRange"}
+        capture_rate: {type: number, format: double, nullable: true, description: captured_p50 / potential_p50}
+        confidence:
+          type: object
+          nullable: true
+          required: [min, max]
+          properties:
+            min: {type: number, format: double}
+            max: {type: number, format: double}
+        struk_terbaca: {type: integer, minimum: 0}
+        peak:
+          type: object
+          nullable: true
+          required: [point_label, time_slot, f, e, c, v, gap]
+          properties:
+            point_label: {type: string}
+            time_slot: {$ref: "#/components/schemas/TimeSlot"}
+            f: {type: number, format: double}
+            e: {type: number, format: double}
+            c: {type: number, format: double}
+            v: {type: number, format: double}
+            gap: {$ref: "#/components/schemas/MoneyRange"}
+        composition:
+          type: array
+          items:
+            type: object
+            required: [category, demand_share, gerai_count, is_missing]
+            properties:
+              category: {$ref: "#/components/schemas/Category"}
+              demand_share: {type: number, format: double}
+              gerai_count: {type: integer, minimum: 0}
+              is_missing: {type: boolean}
+        basis: {type: string, enum: [monte-carlo-simpul, agregat-titik]}
+        computed_at: {type: string, format: date-time}
     CategoryGap:
       type: object
-      required: [station_id, category, demand_in_area, available_in_station]
+      required: [station_id, category, demand_in_area, available_in_station, demand_count]
       properties:
         station_id: {type: string, format: uuid}
         category: {$ref: "#/components/schemas/Category"}
         demand_in_area: {type: boolean}
         available_in_station: {type: boolean}
+        demand_count: {type: integer, description: "POI count of this category within the station catchment (~800 m)"}
     RentFlowIndex:
       type: object
       required: [plot_id, station_id, offered_rent, measured_flow, index, is_outlier]
@@ -674,6 +875,29 @@ components:
         zone_id: {type: string}
         activation_score: {type: number, format: double}
         recommended_slot: {type: string, nullable: true}
+    RentalAsset:
+      type: object
+      required: [id, station_id, station_name, station_code, source_id, data_source, location_name, plot_name, latitude, longitude, rented, availability_status, commercial_value_visible]
+      properties:
+        id: {type: string, format: uuid}
+        station_id: {type: string, format: uuid}
+        station_name: {type: string}
+        station_code: {type: string}
+        source_id: {type: string}
+        data_source: {type: string, enum: [space_kai, field_survey]}
+        location_name: {type: string}
+        plot_name: {type: string}
+        area_name: {type: string, nullable: true}
+        latitude: {type: number, format: double}
+        longitude: {type: number, format: double}
+        land_area: {type: number, format: double, nullable: true}
+        building_area: {type: number, format: double, nullable: true}
+        rented: {type: boolean}
+        availability_status: {type: string, enum: [occupied, available, needs_verification]}
+        commercial_value: {type: number, format: double, nullable: true}
+        commercial_value_visible: {type: boolean}
+        source_updated_at: {type: string, format: date-time, nullable: true}
+        note: {type: string, nullable: true}
     ConfidenceLayerEntry:
       type: object
       required: [station_id, zone_id, sample_count, is_thin_sample, confidence_score]
@@ -740,7 +964,13 @@ components:
       required: [job_id, source_ref, station_id, category, final_amount, payment_method, transacted_at, confidence, is_ambiguous]
       properties:
         job_id: {type: string}
-        source_ref: {type: string}
+        source_ref: {type: string, description: R2 object key of the source photo}
+        photo_url:
+          type: string
+          format: uri
+          description: >
+            Redacted, publicly servable URL of the source photo. When present the
+            callback also writes a linked transparency_struk evidence card.
         station_id: {type: string, format: uuid}
         category: {$ref: "#/components/schemas/Category"}
         final_amount: {type: number, format: double, minimum: 0}
@@ -753,7 +983,8 @@ components:
       required: [job_id, source_ref, station_id, plot_id, offered_rent, area_sqm, confidence]
       properties:
         job_id: {type: string}
-        source_ref: {type: string}
+        source_ref: {type: string, description: R2 object key of the source photo}
+        photo_url: {type: string, format: uri, description: Redacted public URL; when present writes a linked transparency_properti card}
         station_id: {type: string, format: uuid}
         plot_id: {type: string}
         offered_rent: {type: number, format: double, minimum: 0}
@@ -764,7 +995,8 @@ components:
       required: [job_id, source_ref, station_id, gerai_id, category, visibility, confidence]
       properties:
         job_id: {type: string}
-        source_ref: {type: string}
+        source_ref: {type: string, description: R2 object key of the source photo}
+        photo_url: {type: string, format: uri, description: Redacted public URL; when present writes a linked transparency_gerai card}
         station_id: {type: string, format: uuid}
         gerai_id: {type: string, format: uuid}
         category: {$ref: "#/components/schemas/Category"}
@@ -781,7 +1013,57 @@ components:
         potential_high_p90: {type: number, format: double}
         captured_low_p10: {type: number, format: double}
         captured_high_p90: {type: number, format: double}
-        iterations: {type: integer, minimum: 1}
+        iterations: {type: integer, minimum: 10000, description: Full Monte Carlo run per methodology 3.3}
+    StationSummaryCallback:
+      type: object
+      description: >-
+        Mirrors StationSummary field for field (minus the server-derived
+        station_name/typology/computed_at) so a rollup round-trips through the
+        API unchanged. `gap` is simulated per iteration, not derived by
+        subtracting the potensi/tertangkap percentiles.
+      required: [job_id, station_id, day_type, iterations, potensi, tertangkap, gap, basis]
+      properties:
+        job_id: {type: string}
+        station_id: {type: string, format: uuid}
+        day_type: {type: string, enum: [weekday, weekend]}
+        iterations: {type: integer, minimum: 10000, description: Validated, not stored — guards against publishing a truncated run}
+        potensi: {$ref: "#/components/schemas/MoneyRange"}
+        tertangkap: {$ref: "#/components/schemas/MoneyRange"}
+        gap: {$ref: "#/components/schemas/MoneyRange"}
+        capture_rate: {type: number, format: double, nullable: true}
+        confidence:
+          type: object
+          nullable: true
+          required: [min, max]
+          properties:
+            min: {type: number, format: double}
+            max: {type: number, format: double}
+        struk_terbaca: {type: integer, minimum: 0}
+        pintu_dicacah: {type: integer, minimum: 0}
+        pintu_ditahan: {type: integer, minimum: 0}
+        peak:
+          type: object
+          nullable: true
+          required: [point_label, time_slot, f, e, c, v, gap]
+          properties:
+            point_label: {type: string}
+            time_slot: {$ref: "#/components/schemas/TimeSlot"}
+            f: {type: number, format: double}
+            e: {type: number, format: double}
+            c: {type: number, format: double}
+            v: {type: number, format: double}
+            gap: {$ref: "#/components/schemas/MoneyRange"}
+        composition:
+          type: array
+          items:
+            type: object
+            required: [category, demand_share, gerai_count, is_missing]
+            properties:
+              category: {$ref: "#/components/schemas/Category"}
+              demand_share: {type: number, format: double}
+              gerai_count: {type: integer, minimum: 0}
+              is_missing: {type: boolean}
+        basis: {type: string, enum: [monte-carlo-simpul, agregat-titik]}
     CreatedID:
       type: object
       required: [id]
@@ -810,21 +1092,116 @@ components:
       properties:
         email: {type: string, format: email}
         password: {type: string, format: password}
-    RefreshRequest:
+    AuthSession:
       type: object
-      required: [refresh_token]
-      properties:
-        refresh_token: {type: string}
-    TokenPair:
-      type: object
-      required: [access_token, refresh_token, expires_in]
+      required: [access_token, expires_in, user]
       properties:
         access_token: {type: string}
-        refresh_token: {type: string}
         expires_in: {type: integer, description: Access token lifetime in seconds}
-    DeepAnalysisPlaceholder:
+        user: {$ref: "#/components/schemas/AuthUser"}
+    AuthUser:
       type: object
-      required: [station_id, note]
+      required: [id, email, role]
       properties:
-        station_id: {type: string}
-        note: {type: string, example: deep-analysis not yet implemented}
+        id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        role: {type: string, enum: [operator, admin]}
+    DeepAnalysis:
+      type: object
+      required: [station, spending_gap, totals, category_gaps, rent_flow_plots, event_potential, confidence, coverage]
+      properties:
+        station: {$ref: "#/components/schemas/PremiumStation"}
+        spending_gap:
+          type: array
+          items: {$ref: "#/components/schemas/PremiumSpendingGapSlot"}
+        totals: {$ref: "#/components/schemas/PremiumTotals"}
+        category_gaps:
+          type: array
+          items: {$ref: "#/components/schemas/PremiumCategoryGap"}
+        rent_flow_plots:
+          type: array
+          items: {$ref: "#/components/schemas/PremiumRentFlowPlot"}
+        event_potential:
+          type: array
+          items: {$ref: "#/components/schemas/PremiumEventPotential"}
+        confidence:
+          type: array
+          items: {$ref: "#/components/schemas/PremiumConfidence"}
+        coverage: {$ref: "#/components/schemas/PremiumCoverage"}
+    PremiumStation:
+      type: object
+      required: [id, name, code, operator, area_type, entrance_count]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        code: {type: string}
+        operator: {type: string}
+        area_type: {type: string}
+        entrance_count: {type: integer}
+    PremiumRange:
+      type: object
+      required: [p10, p90]
+      properties:
+        p10: {type: number}
+        p90: {type: number}
+    PremiumSpendingGapSlot:
+      type: object
+      required: [time_slot, potential, captured, gap, computed_at]
+      properties:
+        time_slot: {type: string}
+        potential: {$ref: "#/components/schemas/PremiumRange"}
+        captured: {$ref: "#/components/schemas/PremiumRange"}
+        gap: {$ref: "#/components/schemas/PremiumRange"}
+        computed_at: {type: string}
+    PremiumTotals:
+      type: object
+      required: [potential, captured, gap, slots_with_data, slots_expected]
+      properties:
+        potential: {$ref: "#/components/schemas/PremiumRange"}
+        captured: {$ref: "#/components/schemas/PremiumRange"}
+        gap: {$ref: "#/components/schemas/PremiumRange"}
+        slots_with_data: {type: integer}
+        slots_expected: {type: integer}
+        capture_rate_p50: {type: number, nullable: true}
+    PremiumCategoryGap:
+      type: object
+      required: [category, demand_in_area, available_in_station, missing]
+      properties:
+        category: {type: string}
+        demand_in_area: {type: boolean}
+        available_in_station: {type: boolean}
+        missing: {type: boolean}
+    PremiumRentFlowPlot:
+      type: object
+      required: [plot_id, offered_rent, measured_flow, index, is_outlier]
+      properties:
+        plot_id: {type: string, format: uuid}
+        offered_rent: {type: number}
+        measured_flow: {type: number}
+        index: {type: number}
+        is_outlier: {type: boolean}
+    PremiumEventPotential:
+      type: object
+      required: [zone_id, activation_score, recommended_slot]
+      properties:
+        zone_id: {type: string, format: uuid}
+        activation_score: {type: number}
+        recommended_slot: {type: string}
+    PremiumConfidence:
+      type: object
+      required: [zone_id, sample_count, is_thin_sample, confidence_score]
+      properties:
+        zone_id: {type: string, format: uuid}
+        sample_count: {type: integer}
+        is_thin_sample: {type: boolean}
+        confidence_score: {type: number}
+    PremiumCoverage:
+      type: object
+      required: [thin_sample_zones, total_zones, struk_total, struk_ambiguous, struk_usable, has_complete_slots]
+      properties:
+        thin_sample_zones: {type: integer}
+        total_zones: {type: integer}
+        struk_total: {type: integer}
+        struk_ambiguous: {type: integer}
+        struk_usable: {type: integer}
+        has_complete_slots: {type: boolean}

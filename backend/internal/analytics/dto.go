@@ -20,6 +20,7 @@ type CategoryGapResponse struct {
 	Category           string `json:"category"`
 	DemandInArea       bool   `json:"demand_in_area"`
 	AvailableInStation bool   `json:"available_in_station"`
+	DemandCount        int    `json:"demand_count"`
 }
 
 type RentFlowIndexResponse struct {

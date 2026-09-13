@@ -22,7 +22,8 @@ func (r *Repository) SpendingGap(ctx context.Context, stationID string) ([]Spend
 	query := `
 		SELECT g.station_id, s.name, g.potential_low_p10, g.potential_high_p90,
 		       g.captured_low_p10, g.captured_high_p90, g.gap_low_p10, g.gap_high_p90,
-		       g.time_slot, g.computed_at
+		       g.time_slot,
+		       to_char(g.computed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS computed_at
 		FROM spending_gap_estimates g
 		JOIN stations s ON s.id = g.station_id
 	`
@@ -62,7 +63,7 @@ func (r *Repository) SpendingGap(ctx context.Context, stationID string) ([]Spend
 
 func (r *Repository) CategoryGap(ctx context.Context, stationID string) ([]CategoryGapResponse, error) {
 	query := `
-		SELECT station_id, category, demand_in_area, available_in_station
+		SELECT station_id, category, demand_in_area, available_in_station, demand_count
 		FROM category_gap_estimates
 	`
 	query, args := withOptionalStationFilter(query, stationID)
@@ -76,7 +77,7 @@ func (r *Repository) CategoryGap(ctx context.Context, stationID string) ([]Categ
 	var out = make([]CategoryGapResponse, 0)
 	for rows.Next() {
 		var c CategoryGapResponse
-		if err := rows.Scan(&c.StationID, &c.Category, &c.DemandInArea, &c.AvailableInStation); err != nil {
+		if err := rows.Scan(&c.StationID, &c.Category, &c.DemandInArea, &c.AvailableInStation, &c.DemandCount); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

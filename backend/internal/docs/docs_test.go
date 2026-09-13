@@ -37,9 +37,12 @@ func TestRegisterEnabled(t *testing.T) {
 	}
 	require.NoError(t, yaml.Unmarshal(specBody, &spec))
 	require.Equal(t, "3.0.3", spec.OpenAPI)
-	require.Len(t, spec.Paths, 24)
+	require.Len(t, spec.Paths, 29)
 	require.Contains(t, spec.Paths, "/healthz")
 	require.Contains(t, spec.Paths, "/api/v1/copilot/query")
+	require.Contains(t, spec.Paths, "/api/v1/analytics/station-summary")
+	require.Contains(t, spec.Paths, "/api/v1/analytics/rental-assets")
+	require.Contains(t, spec.Paths, "/api/v1/auth/logout")
 
 	operations := 0
 	for _, pathValue := range spec.Paths {
@@ -52,7 +55,7 @@ func TestRegisterEnabled(t *testing.T) {
 			}
 		}
 	}
-	require.Equal(t, 25, operations)
+	require.Equal(t, 30, operations)
 }
 
 func TestRegisterDisabled(t *testing.T) {
@@ -70,4 +73,5 @@ func TestSpecContainsSecuritySchemes(t *testing.T) {
 	spec := string(openAPISpec)
 	require.True(t, strings.Contains(spec, "ServiceKeyAuth:"))
 	require.True(t, strings.Contains(spec, "BearerAuth:"))
+	require.True(t, strings.Contains(spec, "RefreshCookie:"))
 }

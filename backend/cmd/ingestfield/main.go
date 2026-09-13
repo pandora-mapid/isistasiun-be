@@ -157,7 +157,7 @@ func ensureFieldEntrances(ctx context.Context, db *pgxpool.Pool, stations map[st
 	const upsert = `
 		INSERT INTO station_entrances (station_id, label, location)
 		VALUES ($1, $2, ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography)
-		ON CONFLICT (station_id, label) DO UPDATE SET label = EXCLUDED.label
+		ON CONFLICT (station_id, label) DO UPDATE SET location = EXCLUDED.location
 		RETURNING id
 	`
 	const lookup = `SELECT id FROM station_entrances WHERE station_id = $1 AND label = $2`

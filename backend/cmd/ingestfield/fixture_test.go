@@ -11,7 +11,7 @@ import (
 
 var testStations = map[string]station{
 	"Manggarai": {ID: "a0000000-0000-4000-8000-000000000001", Code: "MRI"},
-	"Sudirman":  {ID: "a0000000-0000-4000-8000-000000000002", Code: "SUD"},
+	"Sudirman":  {ID: "a0000000-0000-4000-8000-000000000002", Code: "SDM"},
 }
 
 func TestBuildEntryConversionsMapsAMeasuredRow(t *testing.T) {
@@ -105,7 +105,7 @@ func TestBuildFlowObservationsSplitsDirections(t *testing.T) {
 // would fan the same store out into new ids and break the pipeline rollups.
 func TestGeraiIDIsDeterministicAndStationScoped(t *testing.T) {
 	assert.Equal(t, geraiID("MRI", "Indomaret"), geraiID("MRI", " Indomaret "))
-	assert.NotEqual(t, geraiID("MRI", "Indomaret"), geraiID("SUD", "Indomaret"))
+	assert.NotEqual(t, geraiID("MRI", "Indomaret"), geraiID("SDM", "Indomaret"))
 	assert.Equal(t, "64d44986-a4a6-5082-82f1-e076e2d2973c", geraiID("MRI", "Indomaret"))
 }
 

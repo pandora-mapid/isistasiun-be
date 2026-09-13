@@ -2,7 +2,11 @@
 # docker-compose.yml. Values come from .env on the box, which you create once
 # from .env.deploy.example (the deploy workflow never touches it).
 #
-#   docker compose -f docker-compose.deploy.yml --env-file .env up -d
+# Built straight from this checkout (~/isistasiun-be on the VPS), not pulled
+# from GHCR — the deploy workflow git-fetches this repo on the box, then:
+#
+#   docker compose -f docker-compose.deploy.yml --env-file .env build backend
+#   docker compose -f docker-compose.deploy.yml --env-file .env up -d --remove-orphans
 #
 # TLS + routing is handled by the box's existing shared reverse proxy
 # (trackster-nginx-1 on the `shared-web-net` network). This stack only exposes
@@ -10,13 +14,17 @@
 # server block there for SERVER_NAME pointing at that upstream.
 #
 # The pipeline container is behind the "batch" profile: `up` never starts it.
+#   docker compose -f docker-compose.deploy.yml --env-file .env build pipeline
 #   docker compose -f docker-compose.deploy.yml --env-file .env \
 #     --profile batch run --rm pipeline python main.py <job> ...
 
 name: ${COMPOSE_PROJECT_NAME:-isistasiun}
 
+# `backend` builds the image and tags it `<project>-backend`; `migrate` reuses
+# that exact tag (no `build:` of its own) so it never triggers a second build
+# — just run `... build backend` before `up` so the tag already exists.
 x-images:
-  api: &api_image ghcr.io/pandora-mapid/isistasiun-be/api:${IMAGE_TAG:-dev}
+  api: &api_image ${COMPOSE_PROJECT_NAME:-isistasiun}-backend
 
 networks:
   internal:
@@ -46,7 +54,6 @@ services:
 
   migrate:
     image: *api_image
-    pull_policy: always
     restart: "no"
     env_file: .env
     entrypoint: ["sh", "-c", "migrate -path /app/migrations -database \"$$DATABASE_URL\" up"]
@@ -58,7 +65,9 @@ services:
 
   backend:
     image: *api_image
-    pull_policy: always
+    build:
+      context: ./backend
+      target: prod
     restart: always
     env_file: .env
     environment:
@@ -82,8 +91,8 @@ services:
     logging: *logging
 
   pipeline:
-    image: ghcr.io/pandora-mapid/isistasiun-be/pipeline:${IMAGE_TAG:-dev}
-    pull_policy: always
+    build:
+      context: ./pipeline
     profiles: [batch]
     restart: "no"
     env_file: .env

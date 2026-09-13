@@ -1,5 +1,11 @@
 name: Deploy (dev)
 
+# Dulu: build & push image ke GHCR, lalu SCP compose/Makefile ke VPS, lalu
+# VPS pull image itu. Sekarang: VPS punya checkout git sendiri di
+# ~/isistasiun-be, dan workflow ini cuma menyuruhnya fetch commit yang baru
+# di-push lalu build sendiri lewat docker-compose.deploy.yml — tidak ada lagi
+# image yang didorong ke mana pun.
+
 on:
   push:
     branches: [dev]
@@ -9,92 +15,39 @@ concurrency:
   group: deploy-dev
   cancel-in-progress: false
 
-env:
-  IMAGE_BASE: ghcr.io/${{ github.repository }}
-
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-
-      # GITHUB_TOKEN bawaan, bukan PAT. GHCR_PAT kedaluwarsa dalam hitungan
-      # hari setelah dipasang dan setiap deploy sejak 29 Agustus 2026 mati di
-      # langkah ini dengan `denied: denied` — tanpa ada yang menyadarinya,
-      # karena yang gagal cuma job deploy sementara CI tetap hijau. Token
-      # bawaan tidak punya masa berlaku dan tidak perlu dirotasi siapa pun.
-      # isistasiun-fe sudah memakai pola yang sama.
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build & push api
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          target: prod
-          push: true
-          tags: |
-            ${{ env.IMAGE_BASE }}/api:dev
-            ${{ env.IMAGE_BASE }}/api:dev-${{ github.sha }}
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,mode=max,scope=api
-      - name: Build & push pipeline
-        uses: docker/build-push-action@v6
-        with:
-          context: ./pipeline
-          push: true
-          tags: |
-            ${{ env.IMAGE_BASE }}/pipeline:dev
-            ${{ env.IMAGE_BASE }}/pipeline:dev-${{ github.sha }}
-          cache-from: type=gha,scope=pipeline
-          cache-to: type=gha,mode=max,scope=pipeline
-
   deploy:
-    needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Copy stack files to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.deploy.yml,Makefile,.env.deploy.example"
-          target: /opt/isistasiun
-          overwrite: true
-
-      - name: Pull & restart on VPS
+      # Deploy key per-repo dimatikan oleh kebijakan org pandora-mapid, jadi
+      # VPS tidak bisa fetch pakai SSH key sendiri. Sebagai gantinya, PAT
+      # fine-grained (scope: Contents, repo ini + isistasiun-fe) disuntikkan
+      # lewat secret REPO_PULL_TOKEN, dipakai sebentar sebagai git credential
+      # helper lalu langsung di-unset — tidak pernah ditulis ke disk VPS.
+      - name: Fetch, build & restart on VPS
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: GHCR_USER,GHCR_TOKEN,IMAGE_TAG
+          envs: REPO_PULL_TOKEN
+          script_stop: true
           script: |
             set -e
-            cd /opt/isistasiun
-            test -f .env || { echo "::error::/opt/isistasiun/.env is missing — create it from .env.deploy.example"; exit 1; }
 
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            cd ~/isistasiun-be
 
-            # Pin this deploy to the immutable per-commit tag.
-            grep -q '^IMAGE_TAG=' .env && sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_TAG}|" .env || echo "IMAGE_TAG=${IMAGE_TAG}" >> .env
+            git config --local credential.helper \
+              '!f() { echo "username=x-access-token"; echo "password=$REPO_PULL_TOKEN"; }; f'
+            git fetch origin dev
+            git config --local --unset credential.helper
+            git reset --hard origin/dev
+
+            test -f .env || { echo "::error::~/isistasiun-be/.env is missing — create it from .env.deploy.example"; exit 1; }
 
             COMPOSE="docker compose -f docker-compose.deploy.yml --env-file .env"
-            $COMPOSE pull
+            $COMPOSE build backend
             $COMPOSE up -d --remove-orphans
-            docker logout ghcr.io || true
             docker image prune -f
 
             echo "waiting for health..."
@@ -109,9 +62,4 @@ jobs:
             $COMPOSE logs --tail=60 backend migrate
             exit 1
         env:
-          GHCR_USER: ${{ github.actor }}
-          # Berlaku hanya selama run ini berjalan, dan skrip di atas langsung
-          # `docker logout` setelah pull — jadi tidak ada kredensial yang
-          # tertinggal di server, tidak seperti PAT yang umurnya berbulan-bulan.
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGE_TAG: dev-${{ github.sha }}
+          REPO_PULL_TOKEN: ${{ secrets.REPO_PULL_TOKEN }}

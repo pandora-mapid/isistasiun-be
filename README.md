@@ -45,6 +45,7 @@ make up                      # docker compose up -d --build
 make be-migrate-up           # jalankan migration (butuh golang-migrate, lihat catatan di bawah)
 make be-seed                  # (opsional) demo data station-summary — 2 simpul, buat coba endpoint
 make be-test                 # go test ./... — tier akses + klasifikasi copilot
+make be-ingest-field         # muat data survei lapangan asli (lihat di bawah)
 ```
 
 `make be-seed` mengisi `stations` + `station_summary` untuk Manggarai & Sudirman
@@ -52,6 +53,20 @@ supaya `GET /api/v1/analytics/station-summary` mengembalikan data di stack yang
 masih kosong (`backend/seed/demo_station_summary.sql`, `make be-seed-down` untuk
 menghapusnya). Dev/demo saja — data sungguhan datang dari pipeline Monte Carlo
 per simpul lewat `/pipeline/simulations/monte-carlo`.
+
+Data survei lapangan sungguhan (bukan demo) dimuat dari fixture di repo
+sebelah `../isistasiun-ai/data/source/field/` lewat endpoint `/survey/*`:
+
+```bash
+make be-ingest-field DRY_RUN=1   # lihat payload dulu, tanpa menulis apa pun
+make be-ingest-field             # kirim (idempoten, aman diulang)
+```
+
+Yang dimuat: 36 baris `entry_conversion_observations` (2 hari x 2 slot terukur
+x tiap gerai di kedua stasiun) + 6 baris `flow_observations` (3 pintu, arah
+masuk dan keluar). Baris `source: "mock"` (slot siang sintetis) sengaja
+**tidak** dimuat — memasukkannya sebagai baris survei akan mencampur angka
+sintetis ke sumber kebenaran. Detail pemetaan ada di `backend/cmd/ingestfield/`.
 
 Buat akun operator untuk tier premium (password dibaca dari env, bukan flag,
 supaya tidak masuk shell history):

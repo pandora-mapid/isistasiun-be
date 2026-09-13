@@ -409,6 +409,27 @@ paths:
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/pipeline/simulations/station-summary:
+    post:
+      tags: [Pipeline]
+      summary: Ingest a station-scoped Monte Carlo rollup
+      description: >-
+        Whole-station, whole-day figure behind the Compare View. Separate from
+        /pipeline/simulations/monte-carlo, which is per (station, time_slot)
+        and carries only P10/P90. Upserts on (station_id, day_type), so a
+        retried pipeline run replaces the row instead of duplicating it.
+      operationId: ingestStationSummary
+      security: [{ServiceKeyAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/StationSummaryCallback"}
+      responses:
+        "200": {$ref: "#/components/responses/Ingested"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /api/v1/transparency/struk/{id}:
     get:
       tags: [Transparency]
@@ -992,6 +1013,56 @@ components:
         captured_low_p10: {type: number, format: double}
         captured_high_p90: {type: number, format: double}
         iterations: {type: integer, minimum: 10000, description: Full Monte Carlo run per methodology 3.3}
+    StationSummaryCallback:
+      type: object
+      description: >-
+        Mirrors StationSummary field for field (minus the server-derived
+        station_name/typology/computed_at) so a rollup round-trips through the
+        API unchanged. `gap` is simulated per iteration, not derived by
+        subtracting the potensi/tertangkap percentiles.
+      required: [job_id, station_id, day_type, iterations, potensi, tertangkap, gap, basis]
+      properties:
+        job_id: {type: string}
+        station_id: {type: string, format: uuid}
+        day_type: {type: string, enum: [weekday, weekend]}
+        iterations: {type: integer, minimum: 10000, description: Validated, not stored — guards against publishing a truncated run}
+        potensi: {$ref: "#/components/schemas/MoneyRange"}
+        tertangkap: {$ref: "#/components/schemas/MoneyRange"}
+        gap: {$ref: "#/components/schemas/MoneyRange"}
+        capture_rate: {type: number, format: double, nullable: true}
+        confidence:
+          type: object
+          nullable: true
+          required: [min, max]
+          properties:
+            min: {type: number, format: double}
+            max: {type: number, format: double}
+        struk_terbaca: {type: integer, minimum: 0}
+        pintu_dicacah: {type: integer, minimum: 0}
+        pintu_ditahan: {type: integer, minimum: 0}
+        peak:
+          type: object
+          nullable: true
+          required: [point_label, time_slot, f, e, c, v, gap]
+          properties:
+            point_label: {type: string}
+            time_slot: {$ref: "#/components/schemas/TimeSlot"}
+            f: {type: number, format: double}
+            e: {type: number, format: double}
+            c: {type: number, format: double}
+            v: {type: number, format: double}
+            gap: {$ref: "#/components/schemas/MoneyRange"}
+        composition:
+          type: array
+          items:
+            type: object
+            required: [category, demand_share, gerai_count, is_missing]
+            properties:
+              category: {$ref: "#/components/schemas/Category"}
+              demand_share: {type: number, format: double}
+              gerai_count: {type: integer, minimum: 0}
+              is_missing: {type: boolean}
+        basis: {type: string, enum: [monte-carlo-simpul, agregat-titik]}
     CreatedID:
       type: object
       required: [id]

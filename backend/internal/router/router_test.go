@@ -133,6 +133,7 @@ func TestServiceRoutesRequireServiceKey(t *testing.T) {
 		"/api/v1/pipeline/extractions/properti",
 		"/api/v1/pipeline/extractions/gerai",
 		"/api/v1/pipeline/simulations/monte-carlo",
+		"/api/v1/pipeline/simulations/station-summary",
 	}
 
 	for _, p := range paths {

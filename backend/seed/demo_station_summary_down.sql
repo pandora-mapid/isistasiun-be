@@ -34,7 +34,17 @@ WHERE (station_id, label) IN (
   ) AS v(code, label) ON s.code = v.code
 );
 
-DELETE FROM stations WHERE id IN (
+-- Only drop the demo stations when nothing real hangs off them. Every child
+-- table here is ON DELETE CASCADE, so an unconditional delete would take the
+-- ingested field survey (flow_observations, entry_conversion_observations)
+-- down with it — and the A2 workflow runs this script right before a real
+-- pipeline run, which is exactly when that data must survive.
+DELETE FROM stations s
+WHERE s.id IN (
   'a0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000002'
-);
+)
+AND NOT EXISTS (SELECT 1 FROM flow_observations WHERE station_id = s.id)
+AND NOT EXISTS (SELECT 1 FROM entry_conversion_observations WHERE station_id = s.id)
+AND NOT EXISTS (SELECT 1 FROM station_summary WHERE station_id = s.id)
+AND NOT EXISTS (SELECT 1 FROM struk_extractions WHERE station_id = s.id);
 COMMIT;

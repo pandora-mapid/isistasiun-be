@@ -37,7 +37,7 @@ func TestRegisterEnabled(t *testing.T) {
 	}
 	require.NoError(t, yaml.Unmarshal(specBody, &spec))
 	require.Equal(t, "3.0.3", spec.OpenAPI)
-	require.Len(t, spec.Paths, 28)
+	require.Len(t, spec.Paths, 29)
 	require.Contains(t, spec.Paths, "/healthz")
 	require.Contains(t, spec.Paths, "/api/v1/copilot/query")
 	require.Contains(t, spec.Paths, "/api/v1/analytics/station-summary")
@@ -55,7 +55,7 @@ func TestRegisterEnabled(t *testing.T) {
 			}
 		}
 	}
-	require.Equal(t, 29, operations)
+	require.Equal(t, 30, operations)
 }
 
 func TestRegisterDisabled(t *testing.T) {

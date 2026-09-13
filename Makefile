@@ -1,4 +1,4 @@
-.PHONY: help up down logs be-run be-test be-migrate-up be-migrate-down be-seed be-seed-down be-seed-rental be-seed-rental-down be-sync-rental \
+.PHONY: help up down logs be-run be-test be-migrate-up be-migrate-down be-seed be-seed-down be-seed-rental be-seed-rental-down be-sync-rental be-ingest-field \
         be-operator pipeline-shell fmt deploy-pull deploy-logs pipeline-job
 
 .DEFAULT_GOAL := help
@@ -48,6 +48,12 @@ be-seed-rental-down: ## Hapus demo data layer aset sewa
 
 be-sync-rental: ## Sinkronkan snapshot Manggarai dari Space KAI
 	cd backend && go run ./cmd/sync_rental_assets
+
+# Muat data lapangan Ariq (isistasiun-ai/data/source/field/) ke Postgres lewat
+# endpoint /survey/*. Idempoten — aman diulang.
+#   make be-ingest-field DRY_RUN=1   # lihat dulu tanpa mengirim
+be-ingest-field: ## Ingest data survei lapangan ke /survey/* (DRY_RUN=1 untuk cek)
+	cd backend && go run ./cmd/ingestfield $(if $(DRY_RUN),-dry-run,)
 
 pipeline-shell: ## Shell ke container pipeline (lokal)
 	docker compose exec pipeline bash

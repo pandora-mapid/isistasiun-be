@@ -169,11 +169,20 @@ func buildEntryConversions(rows []entryRow, stations map[string]station, surveyo
 // entranceSpec pins each fixture door label to a real entrance row.
 //
 // The fixture names doors "A"/"B"/"atas" and carries no coordinates for them.
-// Sudirman comes from observation-points.json (pt_4 "Pintu atas"); the two
-// Manggarai coordinates and the A-is-bawah / B-is-atas reading were given by
-// the survey team on 2026-09-12. The seeded demo entrances ("Pintu Utama",
-// "Koridor Transit ...") are a different, invented set and are deliberately
-// not reused.
+// The A-is-bawah / B-is-atas reading for Manggarai was given by the survey
+// team on 2026-09-12. The seeded demo entrances ("Pintu Utama", "Koridor
+// Transit ...") are a different, invented set and are deliberately not
+// reused.
+//
+// Corrected 2026-09-13: the original "SUD"/"atas" coordinate was mislabeled —
+// it actually sits on the main lower entrance, not the upper one. Confirmed
+// by the survey team via re-measurement; all coordinates below (Manggarai and
+// Sudirman) come from that re-measurement, not the original field survey.
+// The fixture's "atas" pintu code is kept as-is (it's the join key against
+// flow-observations.json / entry-conversion.json) even though the corrected
+// label is "Pintu Bawah Utama" — renaming the code would require re-keying
+// the historical flow rows too, which were never split by door in the first
+// place.
 type entranceSpec struct {
 	StationCode string
 	Pintu       string
@@ -183,9 +192,11 @@ type entranceSpec struct {
 }
 
 var fieldEntrances = []entranceSpec{
-	{StationCode: "MRI", Pintu: "A", Label: "Pintu Bawah", Lat: -6.2100132, Lon: 106.8500746},
-	{StationCode: "MRI", Pintu: "B", Label: "Pintu Atas", Lat: -6.2097676, Lon: 106.8490637},
-	{StationCode: "SUD", Pintu: "atas", Label: "Pintu Atas", Lat: -6.2022544, Lon: 106.8233293},
+	{StationCode: "MRI", Pintu: "A", Label: "Pintu Bawah", Lat: -6.209898745923517, Lon: 106.85021581782942},
+	{StationCode: "MRI", Pintu: "B", Label: "Pintu Atas", Lat: -6.210112908837247, Lon: 106.8492864593219},
+	{StationCode: "SUD", Pintu: "atas", Label: "Pintu Bawah Utama", Lat: -6.202267977330985, Lon: 106.82318166742444},
+	{StationCode: "SUD", Pintu: "bawah_belakang", Label: "Pintu Bawah Belakang", Lat: -6.20262664463407, Lon: 106.8246451141926},
+	{StationCode: "SUD", Pintu: "atas_asli", Label: "Pintu Atas", Lat: -6.202413019184441, Lon: 106.82357353948973},
 }
 
 // flowClock is the start of the measured morning block per station, from the

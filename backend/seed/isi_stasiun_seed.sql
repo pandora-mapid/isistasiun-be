@@ -11,10 +11,16 @@
 --
 -- NOT seeded (deliberate):
 --   * event_potential_scores — no real data exists (no field survey); left empty.
---   * Manggarai station_entrances — no real entrance coordinates were captured
---     (only gerai/ruko points). Sudirman's two real entrances are seeded.
 --   * rent_flow_index has no "status" column in the schema; the vacant plots
 --     are the plot_id 'manggarai-petak-05..08' rows (offered_rent 594,000,000).
+--
+-- Corrected 2026-09-13: station_entrances below replaces the previous version.
+-- The original Sudirman coordinate (labeled "Pintu Atas") was mislabeled — it
+-- actually sits on the main lower entrance — and Manggarai never had real
+-- entrance coordinates at all (only gerai/ruko points, still true for the
+-- gerai/ruko rows themselves). All five entrance coordinates now come from a
+-- 2026-09-13 re-measurement by the survey team. See
+-- isistasiun-ai/data/source/field/observation-points.json for provenance.
 
 BEGIN;
 
@@ -28,12 +34,24 @@ ON CONFLICT (id) DO UPDATE
   SET name = EXCLUDED.name, code = EXCLUDED.code, operator = EXCLUDED.operator,
       area_type = EXCLUDED.area_type, location = EXCLUDED.location, updated_at = now();
 
--- ---- station_entrances (Sudirman only — real coords) ------------------------
+-- ---- station_entrances (re-measured 2026-09-13, both stations) -------------
+-- Drop the old, mislabeled Sudirman row ("Pintu C1" no longer exists as a
+-- label; the old "Pintu Atas" row is fixed in place by the UPSERT below since
+-- it keeps the same label). Safe on a fresh DB (no-op).
+DELETE FROM station_entrances
+  WHERE station_id = 'a10a6cf2-0002-4f2b-9c1a-000000000002' AND label = 'Pintu C1';
+
 INSERT INTO station_entrances (station_id, label, location) VALUES
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'Pintu Bawah',
+   ST_SetSRID(ST_MakePoint(106.85021581782942, -6.209898745923517), 4326)::geography),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'Pintu Atas',
+   ST_SetSRID(ST_MakePoint(106.8492864593219, -6.210112908837247), 4326)::geography),
+  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'Pintu Bawah Utama',
+   ST_SetSRID(ST_MakePoint(106.82318166742444, -6.202267977330985), 4326)::geography),
+  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'Pintu Bawah Belakang',
+   ST_SetSRID(ST_MakePoint(106.8246451141926, -6.20262664463407), 4326)::geography),
   ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'Pintu Atas',
-   ST_SetSRID(ST_MakePoint(106.8233293, -6.2022544), 4326)::geography),
-  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'Pintu C1',
-   ST_SetSRID(ST_MakePoint(106.8246516, -6.2027007), 4326)::geography)
+   ST_SetSRID(ST_MakePoint(106.82357353948973, -6.202413019184441), 4326)::geography)
 ON CONFLICT (station_id, label) DO UPDATE SET location = EXCLUDED.location;
 
 -- ---- spending_gap_estimates -------------------------------------------------

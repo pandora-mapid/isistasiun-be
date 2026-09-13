@@ -194,14 +194,14 @@ type entranceSpec struct {
 var fieldEntrances = []entranceSpec{
 	{StationCode: "MRI", Pintu: "A", Label: "Pintu Bawah", Lat: -6.209898745923517, Lon: 106.85021581782942},
 	{StationCode: "MRI", Pintu: "B", Label: "Pintu Atas", Lat: -6.210112908837247, Lon: 106.8492864593219},
-	{StationCode: "SUD", Pintu: "atas", Label: "Pintu Bawah Utama", Lat: -6.202267977330985, Lon: 106.82318166742444},
-	{StationCode: "SUD", Pintu: "bawah_belakang", Label: "Pintu Bawah Belakang", Lat: -6.20262664463407, Lon: 106.8246451141926},
-	{StationCode: "SUD", Pintu: "atas_asli", Label: "Pintu Atas", Lat: -6.202413019184441, Lon: 106.82357353948973},
+	{StationCode: "SDM", Pintu: "atas", Label: "Pintu Bawah Utama", Lat: -6.202267977330985, Lon: 106.82318166742444},
+	{StationCode: "SDM", Pintu: "bawah_belakang", Label: "Pintu Bawah Belakang", Lat: -6.20262664463407, Lon: 106.8246451141926},
+	{StationCode: "SDM", Pintu: "atas_asli", Label: "Pintu Atas", Lat: -6.202413019184441, Lon: 106.82357353948973},
 }
 
 // flowClock is the start of the measured morning block per station, from the
 // survey team: Manggarai 08.00-08.20, Sudirman 08.30-08.40.
-var flowClock = map[string]string{"MRI": "08.00", "SUD": "08.30"}
+var flowClock = map[string]string{"MRI": "08.00", "SDM": "08.30"}
 
 // flowDay — the fixture rows carry no day, so they are taken as the first
 // survey day.

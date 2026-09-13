@@ -65,20 +65,21 @@ ON CONFLICT (station_id, time_slot) DO UPDATE
 --  expose the number; the values live in isistasiun-ai fixtures/provenance.)
 -- available_in_station is from the field survey (gerai inside the station), so
 -- apotek & jasa are demanded-but-absent (the "missing" categories) at both.
-INSERT INTO category_gap_estimates (station_id, category, demand_in_area, available_in_station) VALUES
-  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'makanan_minuman',  true,  true),
-  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'ritel_kemasan',    true,  true),
-  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'apotek_kesehatan', true,  false),
-  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'jasa',             true,  false),
-  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'lainnya',          false, false),
-  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'makanan_minuman',  true,  true),
-  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'ritel_kemasan',    true,  true),
-  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'apotek_kesehatan', true,  false),
-  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'jasa',             true,  false),
-  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'lainnya',          false, false)
+INSERT INTO category_gap_estimates (station_id, category, demand_in_area, available_in_station, demand_count) VALUES
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'makanan_minuman',  true,  true,  21),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'ritel_kemasan',    true,  true,  4),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'apotek_kesehatan', true,  false, 13),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'jasa',             true,  false, 55),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'lainnya',          false, false, 0),
+  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'makanan_minuman',  true,  true,  30),
+  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'ritel_kemasan',    true,  true,  20),
+  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'apotek_kesehatan', true,  false, 4),
+  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'jasa',             true,  false, 71),
+  ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'lainnya',          false, false, 0)
 ON CONFLICT (station_id, category) DO UPDATE
   SET demand_in_area = EXCLUDED.demand_in_area,
-      available_in_station = EXCLUDED.available_in_station;
+      available_in_station = EXCLUDED.available_in_station,
+      demand_count = EXCLUDED.demand_count;
 
 -- ---- confidence_layer -------------------------------------------------------
 INSERT INTO confidence_layer (station_id, zone_id, sample_count, is_thin_sample, confidence_score) VALUES
@@ -108,5 +109,29 @@ ON CONFLICT (station_id, plot_id) DO UPDATE
       measured_flow = EXCLUDED.measured_flow,
       index_value = EXCLUDED.index_value,
       is_outlier = EXCLUDED.is_outlier;
+
+-- ---- rental_assets (Space by KAI — Manggarai in-station, real) ---------------
+-- Tenant contracts: commercial_value_visible=false (KAI marks them not for
+-- public display). Vacant plots No 5-8: public leasing price (visible=true).
+-- Sudirman has no in-station KAI assets (verified by-coordinate) — none seeded.
+INSERT INTO rental_assets
+  (station_id, source_id, data_source, location_name, plot_name, area_name,
+   latitude, longitude, building_area, rented, availability_status,
+   commercial_value, commercial_value_visible, source_updated_at) VALUES
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001','75153818818957567','space_kai','Stasiun Manggarai','SPACE EMPLASEMEN STASIUN MANGGARAI 50,09M (OUTLET CFC)','Daop 1 Jakarta',-6.2099312,106.8502312,50.09,true,'occupied',1577342000,false,'2026-08-21 06:36:04+07'),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001','75153818819205543','space_kai','Stasiun Manggarai','SPACE EMPLASEMEN STASIUN BESAR MANGGARAI 34,20M (FAMILY MART)','Daop 1 Jakarta',-6.2098672,106.8500059,34.20,true,'occupied',250000000,false,'2026-08-21 04:58:14+07'),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001','75153818818422713','space_kai','Stasiun Manggarai','SPACE STASIUN MANGGARAI 36M (OUTLET INDOMARET PINTU TIMUR)','Daop 1 Jakarta',-6.2097743,106.8501588,36.00,true,'occupied',200000000,false,'2026-08-21 04:43:34+07'),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001','75153818833728806','space_kai','Stasiun Manggarai','SPACE EMPLASEMEN STASIUN MANGGARAI 84,30M (TOTO EXPRESS)','Daop 1 Jakarta',-6.2092883,106.8497563,84.30,true,'occupied',150000000,false,'2026-08-21 04:23:01+07'),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001','75153818843382536','space_kai','Stasiun Manggarai','SPACE EMPLASEMEN STASIUN MANGGARAI NO 5 49,5M','Daop 1 Jakarta',-6.2093009,106.8498053,49.50,false,'available',594000000,true,'2026-04-10 02:56:16+07'),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001','75153818843418498','space_kai','Stasiun Manggarai','SPACE EMPLASEMEN STASIUN MANGGARAI NO 6 49,5M','Daop 1 Jakarta',-6.2093311,106.8498212,49.50,false,'available',594000000,true,'2026-04-10 02:55:44+07'),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001','75153818843418475','space_kai','Stasiun Manggarai','SPACE EMPLASEMEN STASIUN MANGGARAI NO 7 49,5M','Daop 1 Jakarta',-6.2093612,106.8498149,49.50,false,'available',594000000,true,'2026-04-10 02:54:50+07'),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001','75153818843418165','space_kai','Stasiun Manggarai','SPACE EMPLASEMEN STASIUN MANGGARAI NO 8 49,5M','Daop 1 Jakarta',-6.2093913,106.8498420,49.50,false,'available',594000000,true,'2026-04-10 02:28:02+07')
+ON CONFLICT (data_source, source_id) DO UPDATE
+  SET commercial_value = EXCLUDED.commercial_value, rented = EXCLUDED.rented,
+      availability_status = EXCLUDED.availability_status,
+      commercial_value_visible = EXCLUDED.commercial_value_visible,
+      latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude,
+      building_area = EXCLUDED.building_area, source_updated_at = EXCLUDED.source_updated_at,
+      updated_at = now();
 
 COMMIT;

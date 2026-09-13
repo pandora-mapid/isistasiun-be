@@ -850,12 +850,13 @@ components:
         computed_at: {type: string, format: date-time}
     CategoryGap:
       type: object
-      required: [station_id, category, demand_in_area, available_in_station]
+      required: [station_id, category, demand_in_area, available_in_station, demand_count]
       properties:
         station_id: {type: string, format: uuid}
         category: {$ref: "#/components/schemas/Category"}
         demand_in_area: {type: boolean}
         available_in_station: {type: boolean}
+        demand_count: {type: integer, description: "POI count of this category within the station catchment (~800 m)"}
     RentFlowIndex:
       type: object
       required: [plot_id, station_id, offered_rent, measured_flow, index, is_outlier]

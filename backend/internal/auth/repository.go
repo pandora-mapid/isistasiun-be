@@ -6,11 +6,15 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var ErrNotFound = errors.New("operator not found")
 var ErrInvalidRefreshSession = errors.New("invalid refresh session")
+var ErrEmailTaken = errors.New("email already registered")
+
+const uniqueViolation = "23505"
 
 type Repository struct {
 	db *pgxpool.Pool
@@ -41,6 +45,44 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*Operator, error) 
 		SELECT id, email, password_hash, role, station_id, created_at
 		FROM operators WHERE id = $1
 	`, id).Scan(&o.ID, &o.Email, &o.PasswordHash, &o.Role, &o.StationID, &o.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &o, nil
+}
+
+// Create inserts a new account of any role. stationID is nil for
+// user/premium/admin — only an operator is ever scoped to one.
+func (r *Repository) Create(ctx context.Context, email, passwordHash string, role Role, stationID *string) (*Operator, error) {
+	var o Operator
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO operators (email, password_hash, role, station_id)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, email, password_hash, role, station_id, created_at
+	`, email, passwordHash, string(role), stationID).
+		Scan(&o.ID, &o.Email, &o.PasswordHash, &o.Role, &o.StationID, &o.CreatedAt)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation {
+			return nil, ErrEmailTaken
+		}
+		return nil, err
+	}
+	return &o, nil
+}
+
+// UpdateRole flips an account's role in place — used by the "upgrade to
+// premium" demo flow, which has no real payment behind it.
+func (r *Repository) UpdateRole(ctx context.Context, id string, role Role) (*Operator, error) {
+	var o Operator
+	err := r.db.QueryRow(ctx, `
+		UPDATE operators SET role = $2
+		WHERE id = $1
+		RETURNING id, email, password_hash, role, station_id, created_at
+	`, id, string(role)).Scan(&o.ID, &o.Email, &o.PasswordHash, &o.Role, &o.StationID, &o.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

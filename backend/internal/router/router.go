@@ -47,13 +47,32 @@ func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 
 	api.Use("/copilot", middleware.RateLimit(cfg.RateLimitRPM)) // most abuse-prone: every call proxies a paid LLM
 	api.Use("/auth/login", middleware.RateLimit(cfg.AuthRateLimitRPM))
+	api.Use("/auth/register", middleware.RateLimit(cfg.AuthRateLimitRPM))
+	// /auth/upgrade is the one /auth/* route that needs an existing session —
+	// it flips the caller's own account, so it must know who's calling.
+	api.Use("/auth/upgrade", middleware.RequireAuth(cfg.JWTSecret))
+
+	// Base map + basic analysis moved from public to "any logged-in account"
+	// tier (2026-09-13 product decision — supersedes the old free-tier-forever
+	// policy; see the vault ADR). RequireRole is deliberately absent here: a
+	// bare "user" is enough, same as premium/operator/admin. /premium stays a
+	// stricter gate below, and /transparency stays open on purpose — it is
+	// the evidence panel judges are meant to see without an account.
+	basicAuth := middleware.RequireAuth(cfg.JWTSecret)
+	api.Use("/stations", basicAuth)
+	api.Use("/analytics", basicAuth)
+	api.Use("/confidence-layer", basicAuth)
 
 	api.Use("/premium",
 		middleware.RequireAuth(cfg.JWTSecret),
-		middleware.RequireRole(string(auth.RoleOperator), string(auth.RoleAdmin)),
+		middleware.RequireRole(string(auth.RolePremium), string(auth.RoleOperator), string(auth.RoleAdmin)),
+	)
+	api.Use("/admin",
+		middleware.RequireAuth(cfg.JWTSecret),
+		middleware.RequireRole(string(auth.RoleAdmin)),
 	)
 
-	// ---- Priyapta: public map/analytics/confidence (no auth — public tier) ----
+	// ---- Priyapta: map/analytics/confidence (now behind basicAuth above) ----
 	stationHandler := station.NewHandler(station.NewService(station.NewRepository(db)))
 	stationHandler.RegisterRoutes(api)
 
@@ -66,7 +85,7 @@ func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 	confidenceHandler := confidence.NewHandler(confidence.NewService(confidence.NewRepository(db)))
 	confidenceHandler.RegisterRoutes(api)
 
-	// ---- Arzaka: station-level rollup for the Compare View (public tier) ----
+	// ---- Arzaka: station-level rollup for the Compare View (behind basicAuth, same as /analytics) ----
 	// TTL-cached: rows only change when the batch pipeline re-runs, and the
 	// FE reads the same two stations repeatedly (map dialog + Insight +
 	// Beranda), so this is a pure win with no numbers changed.

@@ -5,7 +5,9 @@ import "time"
 type Role string
 
 const (
-	RoleOperator Role = "operator" // KAI / KAI Commuter / kawasan operator — premium tier
+	RoleUser     Role = "user"     // pendaftar publik, tier gratis
+	RolePremium  Role = "premium"  // user yang sudah "upgrade" — sama aksesnya dengan operator
+	RoleOperator Role = "operator" // KAI / KAI Commuter / kawasan operator — dibuat admin, terikat satu stasiun
 	RoleAdmin    Role = "admin"
 )
 

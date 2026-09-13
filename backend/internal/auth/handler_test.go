@@ -26,6 +26,18 @@ func (f *fakeAuthService) Login(context.Context, string, string) (*TokenPairResp
 	return f.tokens, f.loginErr
 }
 
+func (f *fakeAuthService) Register(context.Context, string, string) (*TokenPairResponse, error) {
+	return f.tokens, f.loginErr
+}
+
+func (f *fakeAuthService) Upgrade(context.Context, string) (*TokenPairResponse, error) {
+	return f.tokens, f.loginErr
+}
+
+func (f *fakeAuthService) CreateOperator(context.Context, string, string, string) (*Operator, error) {
+	return nil, f.loginErr
+}
+
 func (f *fakeAuthService) Refresh(_ context.Context, token string) (*TokenPairResponse, error) {
 	f.refreshInput = token
 	return f.tokens, f.refreshErr

@@ -23,9 +23,9 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 func (r *Repository) GetByEmail(ctx context.Context, email string) (*Operator, error) {
 	var o Operator
 	err := r.db.QueryRow(ctx, `
-		SELECT id, email, password_hash, role, created_at
+		SELECT id, email, password_hash, role, station_id, created_at
 		FROM operators WHERE email = $1
-	`, email).Scan(&o.ID, &o.Email, &o.PasswordHash, &o.Role, &o.CreatedAt)
+	`, email).Scan(&o.ID, &o.Email, &o.PasswordHash, &o.Role, &o.StationID, &o.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -38,9 +38,9 @@ func (r *Repository) GetByEmail(ctx context.Context, email string) (*Operator, e
 func (r *Repository) GetByID(ctx context.Context, id string) (*Operator, error) {
 	var o Operator
 	err := r.db.QueryRow(ctx, `
-		SELECT id, email, password_hash, role, created_at
+		SELECT id, email, password_hash, role, station_id, created_at
 		FROM operators WHERE id = $1
-	`, id).Scan(&o.ID, &o.Email, &o.PasswordHash, &o.Role, &o.CreatedAt)
+	`, id).Scan(&o.ID, &o.Email, &o.PasswordHash, &o.Role, &o.StationID, &o.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

@@ -57,11 +57,19 @@ ON CONFLICT (station_id, time_slot) DO UPDATE
       computed_at = now();
 
 -- ---- category_gap_estimates -------------------------------------------------
+-- demand_in_area is evidence-backed: real POI counts within 800 m of each
+-- station (MAPID Data Premium POI, ~13k scanned). Counts per (station,category):
+--   Manggarai: makanan_minuman 21, ritel_kemasan 4,  apotek_kesehatan 13, jasa 55
+--   Sudirman:  makanan_minuman 30, ritel_kemasan 20, apotek_kesehatan 4,  jasa 71
+-- (No demand_count column in this schema yet — add a migration if you want to
+--  expose the number; the values live in isistasiun-ai fixtures/provenance.)
+-- available_in_station is from the field survey (gerai inside the station), so
+-- apotek & jasa are demanded-but-absent (the "missing" categories) at both.
 INSERT INTO category_gap_estimates (station_id, category, demand_in_area, available_in_station) VALUES
   ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'makanan_minuman',  true,  true),
   ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'ritel_kemasan',    true,  true),
   ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'apotek_kesehatan', true,  false),
-  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'jasa',             false, false),
+  ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'jasa',             true,  false),
   ('a10a6cf2-0001-4f2b-9c1a-000000000001', 'lainnya',          false, false),
   ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'makanan_minuman',  true,  true),
   ('a10a6cf2-0002-4f2b-9c1a-000000000002', 'ritel_kemasan',    true,  true),

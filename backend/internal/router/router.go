@@ -58,10 +58,22 @@ func Setup(app *fiber.App, db *pgxpool.Pool, cfg *config.Config) {
 	// bare "user" is enough, same as premium/operator/admin. /premium stays a
 	// stricter gate below, and /transparency stays open on purpose — it is
 	// the evidence panel judges are meant to see without an account.
+	//
+	// /confidence-layer, /analytics/rental-assets and /analytics/rent-flow-index
+	// are deliberately NOT in this list, even though they're "basic analysis"
+	// too: Beranda — the one screen that must stay public, it's the
+	// login/register funnel — shares usePetaData() with Peta, and that hook
+	// resolves every loader through a single Promise.all. Gating any one of
+	// these three (the only loaders currently live against the real API
+	// rather than mock/) made the ENTIRE public landing page's map fail for
+	// anonymous visitors, not just the one field. Revisit once the frontend
+	// stops sharing that hook between a public and a gated screen.
 	basicAuth := middleware.RequireAuth(cfg.JWTSecret)
 	api.Use("/stations", basicAuth)
-	api.Use("/analytics", basicAuth)
-	api.Use("/confidence-layer", basicAuth)
+	api.Use("/analytics/spending-gap", basicAuth)
+	api.Use("/analytics/category-gap", basicAuth)
+	api.Use("/analytics/event-potential", basicAuth)
+	api.Use("/analytics/station-summary", basicAuth)
 
 	api.Use("/premium",
 		middleware.RequireAuth(cfg.JWTSecret),

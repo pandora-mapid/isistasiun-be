@@ -89,8 +89,10 @@ func tokenWithStation(t *testing.T, role, typ string, ttl time.Duration, station
 // TestPublicRoutesNeedNoCredentials covers routes that stayed open in the
 // 2026-09-13 account-tiers change: transparency (section 9 makes
 // traceability the product's central claim — an account wall would defeat
-// it, judges included), copilot, and the two account-entry endpoints
-// (login/register can't require a session to reach them).
+// it, judges included), copilot, the two account-entry endpoints
+// (login/register can't require a session to reach them), and the three
+// loaders Beranda's public preview depends on through the shared
+// usePetaData() Promise.all (see the comment on basicAuth in router.go).
 func TestPublicRoutesNeedNoCredentials(t *testing.T) {
 	app := newTestApp()
 
@@ -102,6 +104,9 @@ func TestPublicRoutesNeedNoCredentials(t *testing.T) {
 		{http.MethodPost, "/api/v1/auth/login"},
 		{http.MethodPost, "/api/v1/auth/register"},
 		{http.MethodPost, "/api/v1/copilot/query"},
+		{http.MethodGet, "/api/v1/confidence-layer"},
+		{http.MethodGet, "/api/v1/analytics/rental-assets"},
+		{http.MethodGet, "/api/v1/analytics/rent-flow-index"},
 	} {
 		got := do(t, app, tc.method, tc.path, nil)
 		if got == http.StatusUnauthorized || got == http.StatusForbidden {
@@ -124,12 +129,9 @@ func TestBasicTierRequiresAnyLogin(t *testing.T) {
 		{http.MethodGet, "/api/v1/analytics/spending-gap"},
 		{http.MethodGet, "/api/v1/analytics/spending-gap/abc"},
 		{http.MethodGet, "/api/v1/analytics/category-gap"},
-		{http.MethodGet, "/api/v1/analytics/rent-flow-index"},
-		{http.MethodGet, "/api/v1/analytics/rental-assets"},
 		{http.MethodGet, "/api/v1/analytics/event-potential"},
 		{http.MethodGet, "/api/v1/analytics/station-summary"},
 		{http.MethodGet, "/api/v1/analytics/station-summary/abc"},
-		{http.MethodGet, "/api/v1/confidence-layer"},
 	}
 
 	for _, tc := range paths {

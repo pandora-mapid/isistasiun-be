@@ -47,7 +47,11 @@ jobs:
 
             COMPOSE="docker compose -f docker-compose.deploy.yml --env-file .env"
             $COMPOSE build backend
-            $COMPOSE up -d --remove-orphans
+            if ! $COMPOSE up -d --remove-orphans; then
+              echo "::error::compose startup failed"
+              $COMPOSE logs --tail=100 migrate
+              exit 1
+            fi
             docker image prune -f
 
             echo "waiting for health..."

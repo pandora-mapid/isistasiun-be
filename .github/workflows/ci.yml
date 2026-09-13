@@ -16,6 +16,20 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+      - name: Validate migration numbering
+        shell: bash
+        run: |
+          set -euo pipefail
+          duplicates="$(find migrations -maxdepth 1 -type f -name '*.up.sql' -printf '%f\n' \
+            | cut -d_ -f1 | sort | uniq -d)"
+          if [ -n "$duplicates" ]; then
+            echo "Duplicate migration version(s): $duplicates" >&2
+            exit 1
+          fi
+          for up in migrations/*.up.sql; do
+            down="${up%.up.sql}.down.sql"
+            test -f "$down" || { echo "Missing down migration: $down" >&2; exit 1; }
+          done
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"

@@ -18,6 +18,7 @@ const (
 	IntentEventPotential Intent = "event_potential"
 	IntentConfidence     Intent = "confidence"
 	IntentFlow           Intent = "flow"
+	IntentCompare        Intent = "compare"
 	IntentUnknown        Intent = "unknown"
 )
 
@@ -85,6 +86,15 @@ var intentPhrases = []struct {
 	layers   []string
 	endpoint string
 }{
+	{
+		// Compare sits first: "bandingkan kesenjangan …" is a comparison, not a
+		// single-station gap. The AI service grounds it across every station's
+		// spending-gap; this floor only needs to classify it consistently.
+		intent:   IntentCompare,
+		phrases:  []string{"banding", "dibanding", "versus", " vs ", "kedua stasiun", "kedua simpul", "antar stasiun", "antar simpul", "mana yang lebih", "manggarai dan sudirman", "sudirman dan manggarai"},
+		layers:   []string{layerGap, layerPotensi},
+		endpoint: "/api/v1/analytics/spending-gap",
+	},
 	{
 		intent:   IntentCategoryGap,
 		phrases:  []string{"kategori", "usaha apa", "gerai apa", "jenis usaha", "belum ada", "kategori hilang", "yang kurang", "cocok dibuka", "peluang usaha", "tenant"},
@@ -200,6 +210,8 @@ func (a Analysis) Answer() string {
 		b.WriteString("Pertanyaan ini soal kepercayaan data. Kawasan bersampel tipis tidak diberi estimasi dan tidak boleh dibaca sebagai aman maupun bermasalah.")
 	case IntentFlow:
 		b.WriteString("Pertanyaan ini soal arus pejalan kaki (variabel F) per pintu dan per slot waktu.")
+	case IntentCompare:
+		b.WriteString("Pertanyaan ini membandingkan antar stasiun — kesenjangan belanja tiap simpul (Manggarai dan Sudirman) diletakkan berdampingan.")
 	default:
 		b.WriteString("Belum jelas bagian mana yang ditanyakan. Coba sebut kesenjangan belanja, kategori usaha, indeks sewa, potensi event, arus pintu, atau kepercayaan data.")
 	}

@@ -63,13 +63,22 @@ func do(t *testing.T, app *fiber.App, method, path string, headers map[string]st
 
 func token(t *testing.T, role, typ string, ttl time.Duration) string {
 	t.Helper()
-	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+	return tokenWithStation(t, role, typ, ttl, "")
+}
+
+func tokenWithStation(t *testing.T, role, typ string, ttl time.Duration, stationID string) string {
+	t.Helper()
+	claims := jwt.MapClaims{
 		"sub":  "11111111-1111-1111-1111-111111111111",
 		"role": role,
 		"typ":  typ,
 		"iat":  time.Now().Unix(),
 		"exp":  time.Now().Add(ttl).Unix(),
-	})
+	}
+	if stationID != "" {
+		claims["station_id"] = stationID
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := tok.SignedString([]byte(testJWTSecret))
 	if err != nil {
 		t.Fatalf("sign token: %v", err)
@@ -179,12 +188,40 @@ func TestPremiumRequiresOperatorToken(t *testing.T) {
 		}
 	}
 
-	for _, role := range []string{"operator", "admin"} {
-		got := do(t, app, http.MethodGet, path, map[string]string{
-			"Authorization": "Bearer " + token(t, role, "access", time.Hour),
+	// Admin carries no station claim and reaches every station unscoped.
+	if got := do(t, app, http.MethodGet, path, map[string]string{
+		"Authorization": "Bearer " + token(t, "admin", "access", time.Hour),
+	}); got == http.StatusUnauthorized || got == http.StatusForbidden {
+		t.Errorf("admin: rejected with %d, want to reach the handler", got)
+	}
+
+	// Operator scoped to the requested station reaches the handler too.
+	if got := do(t, app, http.MethodGet, path, map[string]string{
+		"Authorization": "Bearer " + tokenWithStation(t, "operator", "access", time.Hour, "abc"),
+	}); got == http.StatusUnauthorized || got == http.StatusForbidden {
+		t.Errorf("operator scoped to requested station: rejected with %d, want to reach the handler", got)
+	}
+}
+
+// An operator's token pins it to one station (section 4.1); asking for any
+// other station, or carrying no station claim at all, must be refused before
+// the handler ever reaches the database.
+func TestPremiumOperatorIsScopedToItsOwnStation(t *testing.T) {
+	app := newTestApp()
+
+	cases := []struct {
+		name      string
+		stationID string
+	}{
+		{"different station", "not-abc"},
+		{"no station claim", ""},
+	}
+	for _, tc := range cases {
+		got := do(t, app, http.MethodGet, "/api/v1/premium/deep-analysis/abc", map[string]string{
+			"Authorization": "Bearer " + tokenWithStation(t, "operator", "access", time.Hour, tc.stationID),
 		})
-		if got == http.StatusUnauthorized || got == http.StatusForbidden {
-			t.Errorf("role %q: rejected with %d, want to reach the handler", role, got)
+		if got != http.StatusForbidden {
+			t.Errorf("%s: got %d, want %d", tc.name, got, http.StatusForbidden)
 		}
 	}
 }

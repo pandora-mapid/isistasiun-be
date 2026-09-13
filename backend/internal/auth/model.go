@@ -14,7 +14,10 @@ type Operator struct {
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"`
 	Role         Role      `json:"role"`
-	CreatedAt    time.Time `json:"created_at"`
+	// StationID scopes an operator to the single station it represents
+	// (section 4.1). Always nil for admin, which sees every station.
+	StationID *string   `json:"station_id,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // RefreshSession is the server-side half of a refresh JWT. The browser keeps

@@ -6,9 +6,10 @@ type LoginRequest struct {
 }
 
 type UserResponse struct {
-	ID    string `json:"id"`
-	Email string `json:"email"`
-	Role  Role   `json:"role"`
+	ID        string  `json:"id"`
+	Email     string  `json:"email"`
+	Role      Role    `json:"role"`
+	StationID *string `json:"station_id,omitempty"`
 }
 
 type TokenPairResponse struct {

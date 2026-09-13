@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	CtxUserIDKey = "user_id"
-	CtxRoleKey   = "user_role"
+	CtxUserIDKey    = "user_id"
+	CtxRoleKey      = "user_role"
+	CtxStationIDKey = "user_station_id"
 )
 
 // RequireAuth validates a Bearer JWT access token and injects claims into ctx.Locals.
@@ -48,6 +49,10 @@ func RequireAuth(secret string) fiber.Handler {
 
 		c.Locals(CtxUserIDKey, userID)
 		c.Locals(CtxRoleKey, role)
+		// Optional: only an operator token carries it, admin tokens don't.
+		if stationID, ok := claims["station_id"].(string); ok && stationID != "" {
+			c.Locals(CtxStationIDKey, stationID)
+		}
 		return c.Next()
 	}
 }

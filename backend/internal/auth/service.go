@@ -117,9 +117,10 @@ func (s *Service) issueTokenPair(op *Operator) (*TokenPairResponse, RefreshSessi
 			RefreshToken: refresh,
 			ExpiresIn:    int(s.accessTTL.Seconds()),
 			User: UserResponse{
-				ID:    op.ID,
-				Email: op.Email,
-				Role:  op.Role,
+				ID:        op.ID,
+				Email:     op.Email,
+				Role:      op.Role,
+				StationID: op.StationID,
 			},
 		}, RefreshSession{
 			TokenID:    tokenID,
@@ -138,6 +139,9 @@ func (s *Service) signToken(op *Operator, typ string, ttl time.Duration, tokenID
 	}
 	if tokenID != "" {
 		claims["jti"] = tokenID
+	}
+	if op.StationID != nil {
+		claims["station_id"] = *op.StationID
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(s.jwtSecret))
